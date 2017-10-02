@@ -1,10 +1,8 @@
-﻿/*ToDo:
- 1. 2 zones overlapping causes enter/exit messages to not work, what to do?  
- 4. Need to test all functions of the plugin to make sure they work. 
- 4. Add the ability to edit a zone by using zoneId.
- 5. Fix API
+﻿/*ToDo: 
+ 1. Add the ability to edit a zone by using zoneId instead of only standing in zone.
+ 2. Add API(currently working on it)
  Known Bugs: 
- 
+ 2 zones overlapping causes enter/exit messages to not work properly, but otherwise work fine. 
   */
 using System.Collections.Generic;
 using System;
@@ -31,7 +29,7 @@ using CodeHatch.Inventory.Blueprints;
 
 namespace Oxide.Plugins
 {
-    [Info("ProtectedZone", "Mordeus", "1.0.")]
+    [Info("ProtectedZone", "Mordeus", "1.0.1")]
     public class ProtectedZone : ReignOfKingsPlugin
     {
         private DynamicConfigFile ProtectedZoneData;
@@ -49,8 +47,7 @@ namespace Oxide.Plugins
         List<Vector2> zones = new List<Vector2>();
         private Dictionary<string, Timer> timers = new Dictionary<string, Timer>();
         private Dictionary<string, Timer> ZoneCheckTimer = new Dictionary<string, Timer>();
-
-        private readonly static Dictionary<Type, ISocialScheme> _schemes;
+        
 
         #region Data
         protected override void LoadDefaultConfig()
@@ -489,7 +486,7 @@ namespace Oxide.Plugins
             Player attacker = damageEvent.Damage.DamageSource.Owner;
             var victim = damageEvent.Entity.Owner.DisplayName;            
             if (damageEvent.Damage.Amount < 0) return;
-            //if (attacker.HasPermission("admin") && AdminCanKill) return;
+            if (attacker.HasPermission("admin") && AdminCanKill) return;
             if (damageEvent.Entity.IsPlayer && attacker != null || damageEvent.Entity.name.Contains("Crest") || sleeper == true)
             {                
                 if (victim == damageEvent.Damage.DamageSource.Owner.DisplayName) return; //allows dehydration and hunger, as well as healing.
@@ -527,6 +524,8 @@ namespace Oxide.Plugins
         }
         private void OnCubePlacement(CubePlaceEvent Event)
         {
+            if (Event == null) return;
+            if (Event.Entity == null) return;
             Player player = Event.Entity.Owner;
             if (player.HasPermission("admin") && AdminCanBuild) return;                       
             foreach (var zoneDef in ZoneDefinitions)
@@ -536,26 +535,29 @@ namespace Oxide.Plugins
 
                     if (zoneDef.Value.ZoneNoBuild == true)
                     {
-                        if (CrestCheckOn)
+                        if (Event.Material != CubeInfo.Air.MaterialID)
                         {
-                            if (SocialAPI.Get<CrestScheme>().IsEmpty(Event.Grid.LocalToWorldCoordinate(Event.Position)))//allows crest owners to remove/add blocks
+                            if (CrestCheckOn)
+                            {
+                                if (SocialAPI.Get<CrestScheme>().IsEmpty(Event.Grid.LocalToWorldCoordinate(Event.Position)))//allows crest owners to remove/add blocks
+                                {
+                                    InventoryUtil.CollectTileset(Event.Sender, Event.Material, 1, Event.PrefabId);
+                                    Event.Cancel(lang.GetMessage("logNoBuild", this, player.ToString()), player);
+                                    Puts(lang.GetMessage("logNoBuild", this, player.ToString()), player);
+                                    SendReply(player, lang.GetMessage("noBuild", this, player.ToString()));
+                                }
+                                else
+                                    return;
+                            }
+                            else
                             {
                                 InventoryUtil.CollectTileset(Event.Sender, Event.Material, 1, Event.PrefabId);
-                                Event.Cancel(lang.GetMessage("logNoBuild", this, player.ToString()), player);                                
+                                Event.Cancel(lang.GetMessage("logNoBuild", this, player.ToString()), player);
                                 Puts(lang.GetMessage("logNoBuild", this, player.ToString()), player);
                                 SendReply(player, lang.GetMessage("noBuild", this, player.ToString()));
                             }
-                            else
-                                return;
-                        }
-                        else
-                        {
-                            InventoryUtil.CollectTileset(Event.Sender, Event.Material, 1, Event.PrefabId);
-                            Event.Cancel(lang.GetMessage("logNoBuild", this, player.ToString()), player);                            
-                            Puts(lang.GetMessage("logNoBuild", this, player.ToString()), player);
-                            SendReply(player, lang.GetMessage("noBuild", this, player.ToString()));
-                        }
 
+                        }
                     }
 
                 }
@@ -722,11 +724,11 @@ namespace Oxide.Plugins
                         {
                             Player.ExitZone = false;
                         }
-                        if (timers.ContainsKey(player.Id.ToString()) && Player.ZoneId != zoneDef.Value.Id)
-                        {
-                            timers[player.Id.ToString()].Destroy();
-                            timers.Remove(player.Id.ToString());
-                        }
+                        //if (timers.ContainsKey(player.Id.ToString()) && Player.ZoneId != zoneDef.Value.Id)
+                        //{
+                            //timers[player.Id.ToString()].Destroy();
+                            //timers.Remove(player.Id.ToString());
+                        //}
                     }
                 }
             }
@@ -764,7 +766,8 @@ namespace Oxide.Plugins
             {
                 if (repeat == true && !timers.ContainsKey(player.Id.ToString()))
                 {                    
-                        timers.Add(player.Id.ToString(), timer.Repeat(MessageInterval, 0, () => SendReply(player, message)));                    
+                        //timers.Add(player.Id.ToString(), timer.Repeat(MessageInterval, 0, () => SendReply(player, message)));
+                        timers.Add(player.Id.ToString(), timer.Repeat(MessageInterval, 0, () => SendReply(player, message)));
                 }
                 else
                 {
@@ -818,160 +821,7 @@ namespace Oxide.Plugins
         }
 
         #endregion
-        #region API
-        private bool EditZone(string zoneId, string[] args)
-        {
-            ZoneInfo zonedef;
-            ZoneDefinitions.TryGetValue(zoneId, out zonedef);
-            //storedData.ZoneDefinitions.Remove(zonedef);
-            UpdateZoneInfo(zonedef, args);
-            
-            ZoneDefinitions[zoneId] = zonedef;
-            storedData.ZoneDefinitions.Add(zonedef);
-            SaveData();
-            if (zonedef.Location == null) return false;            
-            return true;
-        }
-        private void NewZone(Player player, ZoneInfo zonedef, string[] args)
-        {
-            PlayerData Player = GetCache(player);
-            if (zonedef == null) return;
-            foreach (var zoneDef in ZoneDefinitions)
-            {
-                if (IsInZone(player, zoneDef.Value.Id, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) == true)
-                {
-                    SendReply(player, lang.GetMessage("inZoneError", this, player.Id.ToString()));
-                    return;
-                }
-            }
-            var newzoneinfo = new ZoneInfo(player.Entity.Position) { Id = UnityEngine.Random.Range(1, 99999999).ToString() };
-            if (ZoneDefinitions.ContainsKey(newzoneinfo.Id)) storedData.ZoneDefinitions.Remove(ZoneDefinitions[newzoneinfo.Id]);
-            ZoneDefinitions[newzoneinfo.Id] = newzoneinfo;
-            storedData.ZoneDefinitions.Add(newzoneinfo);
-            SaveData();
-            string name = args[1];
-            float zonex = player.Entity.Position.x;
-            float zoney = player.Entity.Position.y;
-            float zonez = player.Entity.Position.z;
-            ZoneDefinitions[newzoneinfo.Id].ZoneX = zonex;
-            ZoneDefinitions[newzoneinfo.Id].ZoneZ = zonez;
-            ZoneDefinitions[newzoneinfo.Id].Name = name;
-            ZoneDefinitions[newzoneinfo.Id].ZoneCreatorName = player.ToString();
-            SendReply(player, lang.GetMessage("zoneAdded", this, player.Id.ToString()), newzoneinfo.Id, name);
-            SaveData();
-            LoadZones();
-            return;
-
-        }
-        private bool RemoveZone(string zoneId)
-        {
-            ZoneInfo zone;
-            if (!ZoneDefinitions.TryGetValue(zoneId, out zone)) return false;
-
-            storedData.ZoneDefinitions.Remove(zone);
-            ZoneDefinitions.Remove(zoneId);
-            SaveData();
-            LoadZones();
-            return true;
-        }
-        private bool IsPlayerInZone(Player player, string zoneId)
-        {
-            PlayerData Player = GetCache(player);            
-            foreach (var zoneDef in ZoneDefinitions)
-            {
-                if (IsInZone(player, zoneDef.Value.Id, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) == true)
-                {
-                    if (zoneId == zoneDef.Value.Id)
-                        return true;
-                }
-                else
-                    return false;
-            }
-            return false;
-        }
-        private object GetZoneName(string zoneID) => GetZoneByID(zoneID)?.Name;
-        private object CheckZoneID(string zoneID) => GetZoneByID(zoneID)?.Id;
-        private ZoneInfo GetZoneByID(string zoneId)
-        {
-            return ZoneDefinitions.ContainsKey(zoneId) ? ZoneDefinitions[zoneId] : null;
-        }
-        #endregion        
-        #region Zone Editing
-        private void UpdateZoneInfo(ZoneInfo zone, string[] args, Player player = null)
-        {
-            for (var i = 0; i < args.Length; i = i + 2)
-            {
-                object editflag;
-                switch (args[i].ToLower())
-                {
-                    case "name":
-                        editflag = zone.Name = args[i + 1];
-                        break;
-                    case "id":
-                        editflag = zone.Id = args[i + 1];
-                        break;
-                    case "radius":
-                        editflag = zone.ZoneRadius = Convert.ToSingle(args[i + 1]);
-                        break;
-                    case "location":
-                        if (player != null && args[i + 1].Equals("here", StringComparison.OrdinalIgnoreCase))
-                        {
-                            editflag = zone.Location = player.Entity.Position;
-                            break;
-                        }
-                        var loc = args[i + 1].Trim().Split(' ');
-                        if (loc.Length == 3)
-                            editflag = zone.Location = new Vector3(Convert.ToSingle(loc[0]), Convert.ToSingle(loc[1]), Convert.ToSingle(loc[2]));
-                        else
-                        {
-                            if (player != null) SendReply(player, "Invalid location format, use: \"x y z\" or here");
-                            continue;
-                        }
-                        break;
-                    case "entermessage":
-                        editflag = zone.EnterZoneMessage = args[i + 1];
-                        break;
-                    case "leavemessage":
-                        editflag = zone.ExitZoneMessage = args[i + 1];
-                        break;
-                    case "message":
-                        editflag = zone.ZoneMessage = args[i + 1];
-                        break;
-                    case "pve":
-                        editflag = zone.ZonePVE = Convert.ToBoolean(args[i + 1]);
-                        break;
-                    case "nobuild":
-                        editflag = zone.ZoneNoBuild = Convert.ToBoolean(args[i + 1]);
-                        break;
-                    case "nodamage":
-                        editflag = zone.ZoneNoDamage = Convert.ToBoolean(args[i + 1]);
-                        break;
-                    case "nosleeperdamage":
-                        editflag = zone.ZoneNoSleeperDamage = Convert.ToBoolean(args[i + 1]);
-                        break;
-                    case "nocrestdamage":
-                        editflag = zone.ZoneNoCrestDamage = Convert.ToBoolean(args[i + 1]);
-                        break;
-                    case "messageon":
-                        editflag = zone.ZoneMessageOn = Convert.ToBoolean(args[i + 1]);
-                        break;
-                    case "entermessageon":
-                        editflag = zone.ZoneEnterMessageOn = Convert.ToBoolean(args[i + 1]);
-                        break;
-                    case "exitmessageon":
-                        editflag = zone.ZoneExitMessageOn = Convert.ToBoolean(args[i + 1]);
-                        break;
-                    default:
-                        if (player != null) SendReply(player, $"Unknown zone flag: {args[i]}");
-                        continue;
-                }
-                if (player != null) SendReply(player, $"{args[i]} set to {editflag}");
-                SaveData();
-                LoadZones();
-            }
-        }
-        #endregion
-
+        
         T GetConfig<T>(string name, T defaultValue)
         {
             if (Config[name] == null) return defaultValue;
