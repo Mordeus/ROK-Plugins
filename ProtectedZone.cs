@@ -1,6 +1,6 @@
 ﻿/*ToDo: 
  1. Add the ability to edit a zone by using zoneId instead of only standing in zone.
- 2. Add API(currently working on it)
+ 2. Add API(currently working on it)  
  Known Bugs: 
  2 zones overlapping causes enter/exit messages to not work properly, but otherwise work fine. 
   */
@@ -29,7 +29,7 @@ using CodeHatch.Inventory.Blueprints;
 
 namespace Oxide.Plugins
 {
-    [Info("ProtectedZone", "Mordeus", "1.0.1")]
+    [Info("ProtectedZone", "Mordeus", "1.0.2")]
     public class ProtectedZone : ReignOfKingsPlugin
     {
         private DynamicConfigFile ProtectedZoneData;
@@ -76,7 +76,7 @@ namespace Oxide.Plugins
                 { "noCrest", "[F5D400]This area is Protected, You can not damage a crest![FFFFFF]" },
                 { "help", "[F5D400]type /zone help to open the help menu[FFFFFF]"},
                 { "synError", "[F5D400]Syntax Error: [FFFFFF]Type '/zone help' to view available options" },
-                { "nameAlreadyExists", "[0000FF]This Name already exists[FFFFFF]" },
+                { "nameExists", "[0000FF]The Name {0} already exists[FFFFFF]" },
                 { "zoneAdded", "[4F9BFF]Zone [FFFFFF]{0}[4F9BFF] sucessfully addded, named [FFFFFF]{1}." },
                 { "zoneInfo", "[FFFFFF]This is ZoneID [4F9BFF]{0}[FFFFFF], Zone Name [4F9BFF]{1}[FFFFFF]" },
                 { "zoneList", "[FFFFFF]ZoneID [4F9BFF]{0}[FFFFFF], Zone Name [4F9BFF]{1}[FFFFFF], Location [4F9BFF]{2}[FFFFFF]" },
@@ -118,18 +118,17 @@ namespace Oxide.Plugins
         void OnServerInitialized()
         {
             CacheAllOnlinePlayers();
-        }
-        private void Loaded()
-        {
-            LoadDefaultConfig();
+        }		
+		private void Init()
+		{
+		    LoadDefaultConfig();
             LoadDefaultMessages();
             ProtectedZoneData = Interface.Oxide.DataFileSystem.GetFile("ProtectedZone");
             ProtectedZoneData.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter(), };                          
             LoadZones();
             LoadData();
-            PData = new Dictionary<Player, PlayerData>();            
-
-        }
+            PData = new Dictionary<Player, PlayerData>();	
+		}
         private void LoadData()
         {
 
@@ -149,12 +148,7 @@ namespace Oxide.Plugins
             foreach (var zonedef in storedData.ZoneDefinitions)
                 ZoneDefinitions[zonedef.Id] = zonedef;
             
-        }
-
-        private void Unloaded()
-        {
-            
-        }
+        }        
         private class StoredData
         {
             public readonly HashSet<ZoneInfo> ZoneDefinitions = new HashSet<ZoneInfo>();
@@ -227,14 +221,15 @@ namespace Oxide.Plugins
         [ChatCommand("zone")]
         private void ZoneCommand(Player player, string cmd, string[] args)
         {
+			string playerId = player.Id.ToString();
             if (!player.HasPermission("admin"))
             {
-                player.SendError(lang.GetMessage("notAllowed", this, player.Id.ToString()));
+                player.SendError(lang.GetMessage("notAllowed", this, playerId));
                 return;
             }            
             if (args == null || args.Length == 0)
             {
-                player.SendError(lang.GetMessage("help", this, player.Id.ToString()));
+                player.SendError(lang.GetMessage("help", this, playerId));
                 return;
             }
             switch (args[0])
@@ -242,13 +237,13 @@ namespace Oxide.Plugins
                 case "help":
                     {
                         
-                        SendReply(player, lang.GetMessage("helpTitle", this, player.Id.ToString()));                        
-                        SendReply(player, lang.GetMessage("helpHelp", this, player.Id.ToString()));                        
-                        SendReply(player, lang.GetMessage("helpAdd", this, player.Id.ToString()));                        
-                        SendReply(player, lang.GetMessage("helpList", this, player.Id.ToString()));                        
-                        SendReply(player, lang.GetMessage("helpRemove", this, player.Id.ToString()));                        
-                        SendReply(player, lang.GetMessage("helpInfo", this, player.Id.ToString()));                        
-                        SendReply(player, lang.GetMessage("helpEdit", this, player.Id.ToString()));
+                        SendReply(player, lang.GetMessage("helpTitle", this, playerId));                        
+                        SendReply(player, lang.GetMessage("helpHelp", this, playerId));                        
+                        SendReply(player, lang.GetMessage("helpAdd", this, playerId));                        
+                        SendReply(player, lang.GetMessage("helpList", this, playerId));                        
+                        SendReply(player, lang.GetMessage("helpRemove", this, playerId));                        
+                        SendReply(player, lang.GetMessage("helpInfo", this, playerId));                        
+                        SendReply(player, lang.GetMessage("helpEdit", this, playerId));
                     }
                     return;
 
@@ -257,23 +252,28 @@ namespace Oxide.Plugins
                         PlayerData Player = GetCache(player);
                         if (args.Length != 2)
                         {
-                            SendReply(player, lang.GetMessage("helpAdd", this, player.Id.ToString()));
+                            SendReply(player, lang.GetMessage("helpAdd", this, playerId));
                             return;
                         }
+                        string name = args[1];
                         foreach (var zoneDef in ZoneDefinitions)
                         {
-                            if (IsInZone(player, zoneDef.Value.Id, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) == true)
+                            if (zoneDef.Value.Name == name)
                             {
-                                SendReply(player, lang.GetMessage("inZoneError", this, player.Id.ToString()));
+                                SendReply(player, lang.GetMessage("nameExists", this, playerId), name);
                                 return;
                             }
-                        }
+                            if (IsInZone(player, zoneDef.Value.Id, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) == true)
+                            {
+                                SendReply(player, lang.GetMessage("inZoneError", this, playerId));
+                                return;
+                            }
+                        }                       
                         var newzoneinfo = new ZoneInfo(player.Entity.Position) { Id = UnityEngine.Random.Range(1, 99999999).ToString() };                       
                         if (ZoneDefinitions.ContainsKey(newzoneinfo.Id)) storedData.ZoneDefinitions.Remove(ZoneDefinitions[newzoneinfo.Id]);
                         ZoneDefinitions[newzoneinfo.Id] = newzoneinfo;                        
                         storedData.ZoneDefinitions.Add(newzoneinfo);
                         SaveData();                        
-                        string name = args[1];
                         float zonex = player.Entity.Position.x;
                         float zoney = player.Entity.Position.y;
                         float zonez = player.Entity.Position.z;
@@ -281,7 +281,7 @@ namespace Oxide.Plugins
                         ZoneDefinitions[newzoneinfo.Id].ZoneZ = zonez;
                         ZoneDefinitions[newzoneinfo.Id].Name = name;
                         ZoneDefinitions[newzoneinfo.Id].ZoneCreatorName = player.ToString();
-                        SendReply(player, lang.GetMessage("zoneAdded", this, player.Id.ToString()), newzoneinfo.Id, name);
+                        SendReply(player, lang.GetMessage("zoneAdded", this, playerId), newzoneinfo.Id, name);
                         SaveData();
                         LoadZones();
                         return;
@@ -289,7 +289,7 @@ namespace Oxide.Plugins
                 case "list":
                     foreach (var zoneDef in ZoneDefinitions)
                     {
-                        SendReply(player, lang.GetMessage("zoneList", this, player.Id.ToString()), zoneDef.Value.Id, zoneDef.Value.Name, zoneDef.Value.Location);
+                        SendReply(player, lang.GetMessage("zoneList", this, playerId), zoneDef.Value.Id, zoneDef.Value.Name, zoneDef.Value.Location);
                     }
                     
                     return;
@@ -299,13 +299,13 @@ namespace Oxide.Plugins
                     if (ZoneDefinitions.ContainsKey(id))
                     {
                         storedData.ZoneDefinitions.Remove(ZoneDefinitions[id]); 
-                        SendReply(player, lang.GetMessage("zoneRemove", this, player.Id.ToString()), id);
+                        SendReply(player, lang.GetMessage("zoneRemove", this, playerId), id);
                         SaveData();
                         LoadData();
                         LoadZones();
                     }
                     else
-                        SendReply(player, lang.GetMessage("zoneError", this, player.Id.ToString()));
+                        SendReply(player, lang.GetMessage("zoneError", this, playerId));
                     return;
                 case "info":
                     int count = 0;
@@ -316,27 +316,27 @@ namespace Oxide.Plugins
                         if (IsInZone(player, zoneDef.Value.Id, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) == true)
                         {
                             zcount++;
-                            SendReply(player, lang.GetMessage("zoneInfo", this, player.Id.ToString()), zoneDef.Value.Id, zoneDef.Value.Name);
-                            SendReply(player, lang.GetMessage("zoneFlag1", this, player.Id.ToString()), zoneDef.Value.ZoneRadius);
-                            SendReply(player, lang.GetMessage("zoneFlag2", this, player.Id.ToString()), zoneDef.Value.ZonePVE);
-                            SendReply(player, lang.GetMessage("zoneFlag3", this, player.Id.ToString()), zoneDef.Value.ZoneNoBuild);
-                            SendReply(player, lang.GetMessage("zoneFlag4", this, player.Id.ToString()), zoneDef.Value.ZoneNoDamage);
-                            SendReply(player, lang.GetMessage("zoneFlag5", this, player.Id.ToString()), zoneDef.Value.ZoneNoSleeperDamage);
-                            SendReply(player, lang.GetMessage("zoneFlag6", this, player.Id.ToString()), zoneDef.Value.ZoneNoCrestDamage);
-                            SendReply(player, lang.GetMessage("zoneFlag7", this, player.Id.ToString()), zoneDef.Value.ZoneMessageOn);
-                            SendReply(player, lang.GetMessage("zoneFlag8", this, player.Id.ToString()), zoneDef.Value.ZoneEnterMessageOn);
-                            SendReply(player, lang.GetMessage("zoneFlag9", this, player.Id.ToString()), zoneDef.Value.ZoneExitMessageOn);
-                            SendReply(player, lang.GetMessage("zoneFlag10", this, player.Id.ToString()), zoneDef.Value.ZoneMessage);
-                            SendReply(player, lang.GetMessage("zoneFlag11", this, player.Id.ToString()), zoneDef.Value.EnterZoneMessage);
-                            SendReply(player, lang.GetMessage("zoneFlag12", this, player.Id.ToString()), zoneDef.Value.ExitZoneMessage);
+                            SendReply(player, lang.GetMessage("zoneInfo", this, playerId), zoneDef.Value.Id, zoneDef.Value.Name);
+                            SendReply(player, lang.GetMessage("zoneFlag1", this, playerId), zoneDef.Value.ZoneRadius);
+                            SendReply(player, lang.GetMessage("zoneFlag2", this, playerId), zoneDef.Value.ZonePVE);
+                            SendReply(player, lang.GetMessage("zoneFlag3", this, playerId), zoneDef.Value.ZoneNoBuild);
+                            SendReply(player, lang.GetMessage("zoneFlag4", this, playerId), zoneDef.Value.ZoneNoDamage);
+                            SendReply(player, lang.GetMessage("zoneFlag5", this, playerId), zoneDef.Value.ZoneNoSleeperDamage);
+                            SendReply(player, lang.GetMessage("zoneFlag6", this, playerId), zoneDef.Value.ZoneNoCrestDamage);
+                            SendReply(player, lang.GetMessage("zoneFlag7", this, playerId), zoneDef.Value.ZoneMessageOn);
+                            SendReply(player, lang.GetMessage("zoneFlag8", this, playerId), zoneDef.Value.ZoneEnterMessageOn);
+                            SendReply(player, lang.GetMessage("zoneFlag9", this, playerId), zoneDef.Value.ZoneExitMessageOn);
+                            SendReply(player, lang.GetMessage("zoneFlag10", this, playerId), zoneDef.Value.ZoneMessage);
+                            SendReply(player, lang.GetMessage("zoneFlag11", this, playerId), zoneDef.Value.EnterZoneMessage);
+                            SendReply(player, lang.GetMessage("zoneFlag12", this, playerId), zoneDef.Value.ExitZoneMessage);
                             return;
                         }
                                            
                     }
                     if (zcount == 0 && count > 1)
-                        SendReply(player, lang.GetMessage("zoneLocError", this, player.Id.ToString()));
+                        SendReply(player, lang.GetMessage("zoneLocError", this, playerId));
                     if (count == 0)
-                        SendReply(player, lang.GetMessage("noZoneError", this, player.Id.ToString()));
+                        SendReply(player, lang.GetMessage("noZoneError", this, playerId));
 
                     return;
                 case "edit":
@@ -353,7 +353,7 @@ namespace Oxide.Plugins
                             if (args[1] == "radius")
                             {
                                 ZoneDefinitions[currentzone].ZoneRadius = Convert.ToUInt64(args[2]);
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneRadius);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneRadius);
                                 return;
                             }
                             if (args[1] == "name")
@@ -361,7 +361,7 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].ZoneName = args[2];
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneName);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneName);
                                 return;
                             }
                             if (args[1] == "pve")
@@ -369,7 +369,7 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].ZonePVE = Convert.ToBoolean(args[2]);
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ZonePVE);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZonePVE);
                                 return;
                             }
                             if (args[1] == "nobuild")
@@ -377,7 +377,7 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].ZoneNoBuild = Convert.ToBoolean(args[2]);
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoBuild);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoBuild);
                                 return;
                             }
                             if (args[1] == "nodamage")
@@ -385,7 +385,7 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].ZoneNoDamage = Convert.ToBoolean(args[2]);
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoDamage);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoDamage);
                                 return;
                             }
                             if (args[1] == "nosleeperdamage")
@@ -393,7 +393,7 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].ZoneNoSleeperDamage = Convert.ToBoolean(args[2]);
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoSleeperDamage);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoSleeperDamage);
                                 return;
                             }
                             if (args[1] == "nocrestdamage")
@@ -401,7 +401,7 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].ZoneNoCrestDamage = Convert.ToBoolean(args[2]);
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoCrestDamage);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoCrestDamage);
                                 return;
                             }
                             if (args[1] == "messageon")
@@ -409,7 +409,7 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].ZoneMessageOn = Convert.ToBoolean(args[2]);
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneMessageOn);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneMessageOn);
                                 return;
                             }
                             if (args[1] == "message")
@@ -417,7 +417,7 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].ZoneMessage = Convert.ToString(args[2]);
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneMessage);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneMessage);
                                 return;
                             }
                             if (args[1] == "entermessageon")
@@ -425,7 +425,7 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].ZoneEnterMessageOn = Convert.ToBoolean(args[2]);
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneEnterMessageOn);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneEnterMessageOn);
                                 return;
                             }
                             if (args[1] == "entermessage")
@@ -433,7 +433,7 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].EnterZoneMessage = Convert.ToString(args[2]);
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.EnterZoneMessage);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.EnterZoneMessage);
                                 return;
                             }
                             if (args[1] == "exitmessageon")
@@ -441,7 +441,7 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].ZoneExitMessageOn = Convert.ToBoolean(args[2]);
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneExitMessageOn);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneExitMessageOn);
                                 return;
                             }
                             if (args[1] == "exitmessage")
@@ -449,28 +449,27 @@ namespace Oxide.Plugins
                                 ZoneDefinitions[currentzone].ExitZoneMessage = Convert.ToString(args[2]);
                                 SaveData();
                                 LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[1], zoneDef.Value.Id, zoneDef.Value.ExitZoneMessage);
+                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ExitZoneMessage);
                                 return;
                             }
                             else
-                                SendReply(player, lang.GetMessage("synError", this, player.Id.ToString()));
+                                SendReply(player, lang.GetMessage("synError", this, playerId));
                             return;                            
                         }
                     }
                     if (zcount == 0 && count > 1)
-                        SendReply(player, lang.GetMessage("zoneLocError", this, player.Id.ToString()));
+                        SendReply(player, lang.GetMessage("zoneLocError", this, playerId));
                     if (count == 0)
-                        SendReply(player, lang.GetMessage("noZoneError", this, player.Id.ToString()));
+                        SendReply(player, lang.GetMessage("noZoneError", this, playerId));
 
                     return;
                 default:
                     break;
 
             }
-            SendReply(player, lang.GetMessage("synError", this, player.Id.ToString()));
+            SendReply(player, lang.GetMessage("synError", this, playerId));
             
         }
-
 
         #endregion
         private void OnEntityHealthChange(EntityDamageEvent damageEvent)
@@ -497,25 +496,25 @@ namespace Oxide.Plugins
                     {
                         if (zoneDef.Value.ZonePVE == true && sleeper == false && !damageEvent.Entity.name.Contains("Crest"))
                         {
-                            damageEvent.Cancel(lang.GetMessage("logPvP", this, damageEvent.Damage.DamageSource.Owner.ToString()), attacker);                            
-                            Puts(lang.GetMessage("logPvP", this, damageEvent.Damage.DamageSource.Owner.ToString()), attacker);
+                            damageEvent.Cancel(lang.GetMessage("logPvP", this, attacker.ToString()), attacker);                            
+                            Puts(lang.GetMessage("logPvP", this, attacker.ToString()), attacker);
                             damageEvent.Damage.Amount = 0f;
-                            SendReply(damageEvent.Damage.DamageSource.Owner, lang.GetMessage("noPvP", this, damageEvent.Damage.DamageSource.Owner.ToString()));
+                            SendReply(attacker, lang.GetMessage("noPvP", this, attacker.ToString()));
                         }
                         if (zoneDef.Value.ZoneNoSleeperDamage == true && sleeper == true)
                         {
-                            damageEvent.Cancel(lang.GetMessage("logSleeper", this, damageEvent.Damage.DamageSource.Owner.ToString()), attacker);                            
-                            Puts(lang.GetMessage("logSleeper", this, damageEvent.Damage.DamageSource.Owner.ToString()), attacker);
+                            damageEvent.Cancel(lang.GetMessage("logSleeper", this, attacker.ToString()), attacker);                            
+                            Puts(lang.GetMessage("logSleeper", this, attacker.ToString()), attacker);
                             damageEvent.Damage.Amount = 0f;
-                            SendReply(damageEvent.Damage.DamageSource.Owner, lang.GetMessage("noSleeper", this, damageEvent.Damage.DamageSource.Owner.ToString()));
+                            SendReply(attacker, lang.GetMessage("noSleeper", this, attacker.ToString()));
 
                         }
                         if (damageEvent.Entity.name.Contains("Crest") && zoneDef.Value.ZoneNoCrestDamage == true)
                         {
-                            damageEvent.Cancel(lang.GetMessage("logCrest", this, damageEvent.Damage.DamageSource.Owner.ToString()), attacker);                            
-                            Puts(lang.GetMessage("logCrest", this, damageEvent.Damage.DamageSource.Owner.ToString()), attacker);
+                            damageEvent.Cancel(lang.GetMessage("logCrest", this, attacker.ToString()), attacker);                            
+                            Puts(lang.GetMessage("logCrest", this, attacker.ToString()), attacker);
                             damageEvent.Damage.Amount = 0f;
-                            SendReply(damageEvent.Damage.DamageSource.Owner, lang.GetMessage("noCrest", this, damageEvent.Damage.DamageSource.Owner.ToString()));
+                            SendReply(attacker, lang.GetMessage("noCrest", this, attacker.ToString()));
                         }
                     }
 
@@ -527,6 +526,7 @@ namespace Oxide.Plugins
             if (Event == null) return;
             if (Event.Entity == null) return;
             Player player = Event.Entity.Owner;
+            string playerId = player.Id.ToString();
             if (player.HasPermission("admin") && AdminCanBuild) return;                       
             foreach (var zoneDef in ZoneDefinitions)
             {
@@ -542,9 +542,9 @@ namespace Oxide.Plugins
                                 if (SocialAPI.Get<CrestScheme>().IsEmpty(Event.Grid.LocalToWorldCoordinate(Event.Position)))//allows crest owners to remove/add blocks
                                 {
                                     InventoryUtil.CollectTileset(Event.Sender, Event.Material, 1, Event.PrefabId);
-                                    Event.Cancel(lang.GetMessage("logNoBuild", this, player.ToString()), player);
-                                    Puts(lang.GetMessage("logNoBuild", this, player.ToString()), player);
-                                    SendReply(player, lang.GetMessage("noBuild", this, player.ToString()));
+                                    Event.Cancel(lang.GetMessage("logNoBuild", this, playerId), player);
+                                    Puts(lang.GetMessage("logNoBuild", this, playerId), player);
+                                    SendReply(player, lang.GetMessage("noBuild", this, playerId));
                                 }
                                 else
                                     return;
@@ -552,9 +552,9 @@ namespace Oxide.Plugins
                             else
                             {
                                 InventoryUtil.CollectTileset(Event.Sender, Event.Material, 1, Event.PrefabId);
-                                Event.Cancel(lang.GetMessage("logNoBuild", this, player.ToString()), player);
-                                Puts(lang.GetMessage("logNoBuild", this, player.ToString()), player);
-                                SendReply(player, lang.GetMessage("noBuild", this, player.ToString()));
+                                Event.Cancel(lang.GetMessage("logNoBuild", this, playerId), player);
+                                Puts(lang.GetMessage("logNoBuild", this, playerId), player);
+                                SendReply(player, lang.GetMessage("noBuild", this, playerId));
                             }
 
                         }
@@ -566,6 +566,7 @@ namespace Oxide.Plugins
         private void OnCubeTakeDamage(CubeDamageEvent Event)
         {
             Player player = Event.Entity.Owner;
+            string playerId = player.Id.ToString();
             TilesetColliderCube centralPrefabAtLocal = BlockManager.DefaultCubeGrid.GetCentralPrefabAtLocal(Event.Position);            
             foreach (var zoneDef in ZoneDefinitions)
             {
@@ -573,7 +574,7 @@ namespace Oxide.Plugins
                 {
                     if (zoneDef.Value.ZoneNoDamage == true)
                     {
-                        Event.Cancel(lang.GetMessage("logNoDamage", this, player.ToString()), player);
+                        Event.Cancel(lang.GetMessage("logNoDamage", this, playerId), player);
                         SalvageModifier component = centralPrefabAtLocal.GetComponent<SalvageModifier>();
                         if (component != null && !component.info.NotSalvageable)
                         {
@@ -583,8 +584,8 @@ namespace Oxide.Plugins
                         Event.Damage.Amount = 0f;
                         Event.Damage.ImpactDamage = 0f;
                         Event.Damage.MiscDamage = 0f;                       
-                        Puts(lang.GetMessage("logNoDamage", this, player.ToString()), player);
-                        SendReply(player, lang.GetMessage("areaProtected", this, player.ToString()));                      
+                        Puts(lang.GetMessage("logNoDamage", this, playerId), player);
+                        SendReply(player, lang.GetMessage("areaProtected", this, playerId));                      
                         return;
                     }
                 }
@@ -593,6 +594,7 @@ namespace Oxide.Plugins
         private void OnObjectDeploy(NetworkInstantiateEvent Event)
         {
             Player player = Server.GetPlayerById(Event.SenderId);
+            string playerId = player.Id.ToString();
             if (player == null) return;
             if (player.HasPermission("admin") && AdminCanBuild) return;
             foreach (var zoneDef in ZoneDefinitions)
@@ -605,8 +607,8 @@ namespace Oxide.Plugins
                         if (bp.Name.Contains("Crest"))
                         {
                             timer.In(1, () => ObjectRemove(player, Event.Position, bp.name));
-                            Puts(lang.GetMessage("logCrestPlace", this, player.ToString()), player, bp.Name);
-                            SendReply(Event.Sender, lang.GetMessage("noPlace", this, Event.Sender.ToString()), bp.Name);
+                            Puts(lang.GetMessage("logCrestPlace", this, playerId), player, bp.Name);
+                            SendReply(Event.Sender, lang.GetMessage("noPlace", this, playerId), bp.Name);
                         }
 
                     }
@@ -616,33 +618,35 @@ namespace Oxide.Plugins
         }        
         private void OnPlayerDisconnected(Player player)
         {
+			string playerId = player.Id.ToString();
             if (PData.ContainsKey(player))
             {
                 PlayerData Player = GetCache(player);
                 PData.Remove(player);
             }
-            if (timers.ContainsKey(player.Id.ToString()))
+            if (timers.ContainsKey(playerId))
             {
-                timers[player.Id.ToString()].Destroy();
-                timers.Remove(player.Id.ToString());
+                timers[playerId].Destroy();
+                timers.Remove(playerId);
             }
-            if (ZoneCheckTimer.ContainsKey(player.Id.ToString()))
+            if (ZoneCheckTimer.ContainsKey(playerId))
             {
-                ZoneCheckTimer[player.Id.ToString()].Destroy();
-                ZoneCheckTimer.Remove(player.Id.ToString());
+                ZoneCheckTimer[playerId].Destroy();
+                ZoneCheckTimer.Remove(playerId);
             }
         }        
         private void OnPlayerConnected(Player player)
         {            
+		    string playerId = player.Id.ToString();
             if (!PData.ContainsKey(player)) 
             {
                 PData.Add(player, new PlayerData (player.Id));                
             }
             if (ZoneCheckOn == true && player.Name != "Server" && player.Id != 9999999999) //fixes error
             {
-                if (!ZoneCheckTimer.ContainsKey(player.Id.ToString()))
+                if (!ZoneCheckTimer.ContainsKey(playerId))
                 {
-                    ZoneCheckTimer.Add(player.Id.ToString(), timer.Repeat(ZoneCheckInterval, 0, () => CheckPlayerLocation(player)));
+                    ZoneCheckTimer.Add(playerId, timer.Repeat(ZoneCheckInterval, 0, () => CheckPlayerLocation(player)));
                 }
             }
 
@@ -723,12 +727,7 @@ namespace Oxide.Plugins
                         if (Player.EnterZone == false && Player.ExitZone == true)
                         {
                             Player.ExitZone = false;
-                        }
-                        //if (timers.ContainsKey(player.Id.ToString()) && Player.ZoneId != zoneDef.Value.Id)
-                        //{
-                            //timers[player.Id.ToString()].Destroy();
-                            //timers.Remove(player.Id.ToString());
-                        //}
+                        }                        
                     }
                 }
             }
@@ -762,21 +761,21 @@ namespace Oxide.Plugins
         }
         private void SendMessage(Player player, string message , bool repeat, bool inZone)
         {
+			string playerId = player.Id.ToString();
             if (MessagesOn == true)
             {
-                if (repeat == true && !timers.ContainsKey(player.Id.ToString()))
-                {                    
-                        //timers.Add(player.Id.ToString(), timer.Repeat(MessageInterval, 0, () => SendReply(player, message)));
-                        timers.Add(player.Id.ToString(), timer.Repeat(MessageInterval, 0, () => SendReply(player, message)));
+                if (repeat == true && !timers.ContainsKey(playerId))
+                {                              
+                        timers.Add(playerId, timer.Repeat(MessageInterval, 0, () => SendReply(player, message)));
                 }
                 else
                 {
                     if (repeat == false)
                     {
-                        if (inZone == false && timers.ContainsKey(player.Id.ToString())) 
+                        if (inZone == false && timers.ContainsKey(playerId)) 
                         {
-                            timers[player.Id.ToString()].Destroy();
-                            timers.Remove(player.Id.ToString());
+                            timers[playerId].Destroy();
+                            timers.Remove(playerId);
                         }
                         SendReply(player, message);
                     }
@@ -789,7 +788,7 @@ namespace Oxide.Plugins
             return PData.TryGetValue(Player, out CachedPlayer) ? CachedPlayer : null;
         }
         void CacheAllOnlinePlayers()
-        {
+        {           
             if (Server.AllPlayers.Count > 0)
             {
                 foreach (Player Player in Server.AllPlayers)
@@ -802,14 +801,15 @@ namespace Oxide.Plugins
 
                     if (Server.PlayerIsOnline(Player.DisplayName))
                     {
+                        string playerId = Player.Id.ToString();
                         if (!PData.ContainsKey(Player))
                         {
                             PData.Add(Player, new PlayerData(Player.Id));
                             if (ZoneCheckOn == true)
                             {
-                                if (!ZoneCheckTimer.ContainsKey(Player.Id.ToString()))
+                                if (!ZoneCheckTimer.ContainsKey(playerId))
                                 {
-                                    ZoneCheckTimer.Add(Player.Id.ToString(), timer.Repeat(ZoneCheckInterval, 0, () => CheckPlayerLocation(Player)));
+                                    ZoneCheckTimer.Add(playerId, timer.Repeat(ZoneCheckInterval, 0, () => CheckPlayerLocation(Player)));
                                 }
                             }
 
