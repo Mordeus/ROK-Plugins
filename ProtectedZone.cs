@@ -1,7 +1,6 @@
 ﻿/*ToDo: 
  1. Add the ability to edit a zone by using zoneId instead of only standing in zone.
- 2. Add API(currently working on it)
- 3.need to test changes for oxide release (added onInit, tostring declaration for player)
+ 2. Add API(currently working on it)  
  Known Bugs: 
  2 zones overlapping causes enter/exit messages to not work properly, but otherwise work fine. 
   */
@@ -77,7 +76,7 @@ namespace Oxide.Plugins
                 { "noCrest", "[F5D400]This area is Protected, You can not damage a crest![FFFFFF]" },
                 { "help", "[F5D400]type /zone help to open the help menu[FFFFFF]"},
                 { "synError", "[F5D400]Syntax Error: [FFFFFF]Type '/zone help' to view available options" },
-                { "nameAlreadyExists", "[0000FF]This Name already exists[FFFFFF]" },
+                { "nameExists", "[0000FF]The Name {0} already exists[FFFFFF]" },
                 { "zoneAdded", "[4F9BFF]Zone [FFFFFF]{0}[4F9BFF] sucessfully addded, named [FFFFFF]{1}." },
                 { "zoneInfo", "[FFFFFF]This is ZoneID [4F9BFF]{0}[FFFFFF], Zone Name [4F9BFF]{1}[FFFFFF]" },
                 { "zoneList", "[FFFFFF]ZoneID [4F9BFF]{0}[FFFFFF], Zone Name [4F9BFF]{1}[FFFFFF], Location [4F9BFF]{2}[FFFFFF]" },
@@ -119,21 +118,7 @@ namespace Oxide.Plugins
         void OnServerInitialized()
         {
             CacheAllOnlinePlayers();
-        }
-		/*
-		not needed?
-        private void Loaded()
-        {
-            LoadDefaultConfig();
-            LoadDefaultMessages();
-            ProtectedZoneData = Interface.Oxide.DataFileSystem.GetFile("ProtectedZone");
-            ProtectedZoneData.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter(), };                          
-            LoadZones();
-            LoadData();
-            PData = new Dictionary<Player, PlayerData>();            
-
-        }
-		*/
+        }		
 		private void Init()
 		{
 		    LoadDefaultConfig();
@@ -270,20 +255,25 @@ namespace Oxide.Plugins
                             SendReply(player, lang.GetMessage("helpAdd", this, playerId));
                             return;
                         }
+                        string name = args[1];
                         foreach (var zoneDef in ZoneDefinitions)
                         {
+                            if (zoneDef.Value.Name == name)
+                            {
+                                SendReply(player, lang.GetMessage("nameExists", this, playerId), name);
+                                return;
+                            }
                             if (IsInZone(player, zoneDef.Value.Id, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) == true)
                             {
                                 SendReply(player, lang.GetMessage("inZoneError", this, playerId));
                                 return;
                             }
-                        }
+                        }                       
                         var newzoneinfo = new ZoneInfo(player.Entity.Position) { Id = UnityEngine.Random.Range(1, 99999999).ToString() };                       
                         if (ZoneDefinitions.ContainsKey(newzoneinfo.Id)) storedData.ZoneDefinitions.Remove(ZoneDefinitions[newzoneinfo.Id]);
                         ZoneDefinitions[newzoneinfo.Id] = newzoneinfo;                        
                         storedData.ZoneDefinitions.Add(newzoneinfo);
                         SaveData();                        
-                        string name = args[1];
                         float zonex = player.Entity.Position.x;
                         float zoney = player.Entity.Position.y;
                         float zonez = player.Entity.Position.z;
@@ -481,7 +471,6 @@ namespace Oxide.Plugins
             
         }
 
-
         #endregion
         private void OnEntityHealthChange(EntityDamageEvent damageEvent)
         {
@@ -537,6 +526,7 @@ namespace Oxide.Plugins
             if (Event == null) return;
             if (Event.Entity == null) return;
             Player player = Event.Entity.Owner;
+            string playerId = player.Id.ToString();
             if (player.HasPermission("admin") && AdminCanBuild) return;                       
             foreach (var zoneDef in ZoneDefinitions)
             {
@@ -552,9 +542,9 @@ namespace Oxide.Plugins
                                 if (SocialAPI.Get<CrestScheme>().IsEmpty(Event.Grid.LocalToWorldCoordinate(Event.Position)))//allows crest owners to remove/add blocks
                                 {
                                     InventoryUtil.CollectTileset(Event.Sender, Event.Material, 1, Event.PrefabId);
-                                    Event.Cancel(lang.GetMessage("logNoBuild", this, player.ToString()), player);
-                                    Puts(lang.GetMessage("logNoBuild", this, player.ToString()), player);
-                                    SendReply(player, lang.GetMessage("noBuild", this, player.ToString()));
+                                    Event.Cancel(lang.GetMessage("logNoBuild", this, playerId), player);
+                                    Puts(lang.GetMessage("logNoBuild", this, playerId), player);
+                                    SendReply(player, lang.GetMessage("noBuild", this, playerId));
                                 }
                                 else
                                     return;
@@ -562,9 +552,9 @@ namespace Oxide.Plugins
                             else
                             {
                                 InventoryUtil.CollectTileset(Event.Sender, Event.Material, 1, Event.PrefabId);
-                                Event.Cancel(lang.GetMessage("logNoBuild", this, player.ToString()), player);
-                                Puts(lang.GetMessage("logNoBuild", this, player.ToString()), player);
-                                SendReply(player, lang.GetMessage("noBuild", this, player.ToString()));
+                                Event.Cancel(lang.GetMessage("logNoBuild", this, playerId), player);
+                                Puts(lang.GetMessage("logNoBuild", this, playerId), player);
+                                SendReply(player, lang.GetMessage("noBuild", this, playerId));
                             }
 
                         }
@@ -576,6 +566,7 @@ namespace Oxide.Plugins
         private void OnCubeTakeDamage(CubeDamageEvent Event)
         {
             Player player = Event.Entity.Owner;
+            string playerId = player.Id.ToString();
             TilesetColliderCube centralPrefabAtLocal = BlockManager.DefaultCubeGrid.GetCentralPrefabAtLocal(Event.Position);            
             foreach (var zoneDef in ZoneDefinitions)
             {
@@ -583,7 +574,7 @@ namespace Oxide.Plugins
                 {
                     if (zoneDef.Value.ZoneNoDamage == true)
                     {
-                        Event.Cancel(lang.GetMessage("logNoDamage", this, player.ToString()), player);
+                        Event.Cancel(lang.GetMessage("logNoDamage", this, playerId), player);
                         SalvageModifier component = centralPrefabAtLocal.GetComponent<SalvageModifier>();
                         if (component != null && !component.info.NotSalvageable)
                         {
@@ -593,8 +584,8 @@ namespace Oxide.Plugins
                         Event.Damage.Amount = 0f;
                         Event.Damage.ImpactDamage = 0f;
                         Event.Damage.MiscDamage = 0f;                       
-                        Puts(lang.GetMessage("logNoDamage", this, player.ToString()), player);
-                        SendReply(player, lang.GetMessage("areaProtected", this, player.ToString()));                      
+                        Puts(lang.GetMessage("logNoDamage", this, playerId), player);
+                        SendReply(player, lang.GetMessage("areaProtected", this, playerId));                      
                         return;
                     }
                 }
@@ -603,6 +594,7 @@ namespace Oxide.Plugins
         private void OnObjectDeploy(NetworkInstantiateEvent Event)
         {
             Player player = Server.GetPlayerById(Event.SenderId);
+            string playerId = player.Id.ToString();
             if (player == null) return;
             if (player.HasPermission("admin") && AdminCanBuild) return;
             foreach (var zoneDef in ZoneDefinitions)
@@ -615,8 +607,8 @@ namespace Oxide.Plugins
                         if (bp.Name.Contains("Crest"))
                         {
                             timer.In(1, () => ObjectRemove(player, Event.Position, bp.name));
-                            Puts(lang.GetMessage("logCrestPlace", this, player.ToString()), player, bp.Name);
-                            SendReply(Event.Sender, lang.GetMessage("noPlace", this, Event.Sender.ToString()), bp.Name);
+                            Puts(lang.GetMessage("logCrestPlace", this, playerId), player, bp.Name);
+                            SendReply(Event.Sender, lang.GetMessage("noPlace", this, playerId), bp.Name);
                         }
 
                     }
@@ -735,12 +727,7 @@ namespace Oxide.Plugins
                         if (Player.EnterZone == false && Player.ExitZone == true)
                         {
                             Player.ExitZone = false;
-                        }
-                        //if (timers.ContainsKey(playerId) && Player.ZoneId != zoneDef.Value.Id)
-                        //{
-                            //timers[playerId].Destroy();
-                            //timers.Remove(playerId);
-                        //}
+                        }                        
                     }
                 }
             }
@@ -801,8 +788,7 @@ namespace Oxide.Plugins
             return PData.TryGetValue(Player, out CachedPlayer) ? CachedPlayer : null;
         }
         void CacheAllOnlinePlayers()
-        {
-			string playerId = Player.Id.ToString();
+        {           
             if (Server.AllPlayers.Count > 0)
             {
                 foreach (Player Player in Server.AllPlayers)
@@ -815,6 +801,7 @@ namespace Oxide.Plugins
 
                     if (Server.PlayerIsOnline(Player.DisplayName))
                     {
+                        string playerId = Player.Id.ToString();
                         if (!PData.ContainsKey(Player))
                         {
                             PData.Add(Player, new PlayerData(Player.Id));
