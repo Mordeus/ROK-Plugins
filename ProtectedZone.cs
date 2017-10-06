@@ -29,7 +29,7 @@ using CodeHatch.Inventory.Blueprints;
 
 namespace Oxide.Plugins
 {
-    [Info("ProtectedZone", "Mordeus", "1.0.2")]
+    [Info("ProtectedZone", "Mordeus", "1.0.3")]
     public class ProtectedZone : ReignOfKingsPlugin
     {
         private DynamicConfigFile ProtectedZoneData;
@@ -565,12 +565,18 @@ namespace Oxide.Plugins
         }
         private void OnCubeTakeDamage(CubeDamageEvent Event)
         {
-            Player player = Event.Entity.Owner;
+            if (Event == null) return;            
+            if (Event.Damage == null) return;
+            if (Event.Damage.Amount <= 0f) return;            
+            if (Event.Damage.DamageSource == null) return;
+            if (!Event.Damage.DamageSource.IsPlayer) return;
+            Player player = Event.Damage.DamageSource.Owner;
+            if (player == null) return;
             string playerId = player.Id.ToString();
             TilesetColliderCube centralPrefabAtLocal = BlockManager.DefaultCubeGrid.GetCentralPrefabAtLocal(Event.Position);            
             foreach (var zoneDef in ZoneDefinitions)
             {
-                if (IsInZone(Event.Entity.Owner, zoneDef.Value.Id, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) == true)
+                if (IsInZone(player, zoneDef.Value.Id, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) == true)
                 {
                     if (zoneDef.Value.ZoneNoDamage == true)
                     {
@@ -583,7 +589,7 @@ namespace Oxide.Plugins
                         
                         Event.Damage.Amount = 0f;
                         Event.Damage.ImpactDamage = 0f;
-                        Event.Damage.MiscDamage = 0f;                       
+                        Event.Damage.MiscDamage = 0f;                        
                         Puts(lang.GetMessage("logNoDamage", this, playerId), player);
                         SendReply(player, lang.GetMessage("areaProtected", this, playerId));                      
                         return;
