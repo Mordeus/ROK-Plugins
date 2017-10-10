@@ -7,7 +7,7 @@
  Known Bugs: 
  2 zones overlapping causes enter/exit messages to not work properly, but otherwise work fine.
  From some reason when using a treb, and a ballista is outside of the structure your attacking, it does 1500 damage to the structure(in a nodamage zone) if the blocks already have damage
-
+  
   */
 using System.Collections.Generic;
 using System;
@@ -37,7 +37,7 @@ using CodeHatch.TerrainAPI;
 
 namespace Oxide.Plugins
 {
-    [Info("ProtectedZone", "Mordeus", "1.1.0")]
+    [Info("ProtectedZone", "Mordeus", "1.1.1")]
     public class ProtectedZone : ReignOfKingsPlugin
     {
         private DynamicConfigFile ProtectedZoneData;
@@ -557,7 +557,7 @@ namespace Oxide.Plugins
             if (damageEvent == null) return;
             if (damageEvent.Damage == null) return;
             if (damageEvent.Damage.DamageSource == null) return;
-            if (!damageEvent.Damage.DamageSource.IsPlayer) return;
+            //if (!damageEvent.Damage.DamageSource.IsPlayer) return;
             if (damageEvent.Damage.DamageSource.Owner == null) return;
             if (damageEvent.Entity == null) return;
             var npc = IsNPC(damageEvent);
@@ -587,7 +587,7 @@ namespace Oxide.Plugins
                 {                    
                     if (IsEntityInZone(damageEvent.Entity.Position, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) || IsInZone(attacker, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius))
                     {                        
-                        if (zoneDef.Value.ZoneNoPVP == true && sleeper == false && !damageEvent.Entity.name.Contains("Crest") && npc == false)
+                        if (zoneDef.Value.ZoneNoPVP == true && sleeper == false && !damageEvent.Entity.name.Contains("Crest") && npc == false && damageEvent.Entity.IsPlayer && damageEvent.Damage.DamageSource.IsPlayer)
                         {
                             damageEvent.Cancel(lang.GetMessage("logPvP", this, attacker.ToString()), attacker);
                             Puts(lang.GetMessage("logPvP", this, attacker.ToString()), attacker);
@@ -602,12 +602,21 @@ namespace Oxide.Plugins
                             SendReply(attacker, lang.GetMessage("noSleeper", this, attacker.ToString()));
 
                         }
-                        if (zoneDef.Value.ZoneNoPVE == true && npc == true)
+                        if (zoneDef.Value.ZoneNoPVE == true && npc == true || !damageEvent.Damage.DamageSource.IsPlayer && zoneDef.Value.ZoneNoPVE == true)
                         {
-                            damageEvent.Cancel(lang.GetMessage("logNoPVE", this, attacker.ToString()), attacker, victim);
-                            Puts(lang.GetMessage("logNoPVE", this, attacker.ToString()), attacker, victim);
-                            damageEvent.Damage.Amount = 0f;
-                            SendReply(attacker, lang.GetMessage("noPVE", this, attacker.ToString()), victim);
+                            if (npc)
+                            {
+                                damageEvent.Cancel(lang.GetMessage("logNoPVE", this, attacker.ToString()), attacker, victim);
+                                Puts(lang.GetMessage("logNoPVE", this, attacker.ToString()), attacker, victim);
+                                damageEvent.Damage.Amount = 0f;
+                                SendReply(attacker, lang.GetMessage("noPVE", this, attacker.ToString()), victim);
+                            }
+                            if (damageEvent.Entity.IsPlayer)
+                            {
+                                damageEvent.Cancel("NoPVE zone, damage cancelled");
+                                //Puts(lang.GetMessage("logNoPVE", this, attacker.ToString()), attacker, victim);
+                                damageEvent.Damage.Amount = 0f;
+                            }
 
                         }
                         if (damageEvent.Entity.name.Contains("Crest") && zoneDef.Value.ZoneNoCrestDamage == true)
@@ -617,7 +626,7 @@ namespace Oxide.Plugins
                             damageEvent.Damage.Amount = 0f;
                             SendReply(attacker, lang.GetMessage("noCrest", this, attacker.ToString()));
                         }
-                        if (zoneDef.Value.ZoneNoPreFabDamage == true && !damageEvent.Entity.IsPlayer && damageEvent.Entity.GetBlueprint() && !damageEvent.Entity.name.Contains("Crest"))
+                        if (zoneDef.Value.ZoneNoPreFabDamage == true && !damageEvent.Entity.IsPlayer && damageEvent.Entity.GetBlueprint() && !damageEvent.Entity.name.Contains("Crest") && sleeper == false && npc == false)
                         {                            
                             victim = damageEvent.Entity.name;
                             string input = victim;
