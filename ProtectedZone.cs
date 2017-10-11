@@ -38,7 +38,6 @@ using CodeHatch.TerrainAPI;
 namespace Oxide.Plugins
 {
     [Info("ProtectedZone", "Mordeus", "1.1.1")]
-
     public class ProtectedZone : ReignOfKingsPlugin
     {
         private DynamicConfigFile ProtectedZoneData;
@@ -729,7 +728,7 @@ namespace Oxide.Plugins
         {
             if (Event == null) return;            
             if (Event.Damage == null) return;
-            if (Event.Damage.Amount <= 0f) return;            
+            if (Event.Damage.Amount <= 0f) return;
             if (Event.Damage.DamageSource == null) return;
             if (!Event.Damage.DamageSource.IsPlayer) return;
             Player player = Event.Damage.DamageSource.Owner;
@@ -745,9 +744,7 @@ namespace Oxide.Plugins
             
             foreach (var zoneDef in ZoneDefinitions)
             {
-
                 if (IsEntityInZone(pos, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) == true)
-                
                 {
                     if (zoneDef.Value.ZoneNoDamage == true)
                     {
@@ -760,7 +757,7 @@ namespace Oxide.Plugins
 
                         Event.Damage.Amount = 0f;
                         Event.Damage.ImpactDamage = 0f;
-                        Event.Damage.MiscDamage = 0f;                        
+                        Event.Damage.MiscDamage = 0f;
                         Puts(lang.GetMessage("logNoDamage", this, playerId), player);
                         SendReply(player, lang.GetMessage("areaProtected", this, playerId));
                         return;
