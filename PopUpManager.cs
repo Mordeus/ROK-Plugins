@@ -8,7 +8,7 @@ using CodeHatch.UserInterface.Dialogues;
 
 namespace Oxide.Plugins
 {
-    [Info("PopUpManager", "Mordeus", "1.0.0")]
+    [Info("PopUpManager", "Mordeus", "1.0.1")]
     public class PopUpManager : ReignOfKingsPlugin
     {
         PopUpData popupData;       
@@ -55,7 +55,8 @@ namespace Oxide.Plugins
                 { "notAllowed", "[F5D400]You are not allowed to do this![FFFFFF]" },
                 { "help", "[F5D400]type /popup help to open the help menu[FFFFFF]"},
                 { "synError", "[F5D400]Syntax Error: [FFFFFF]Type '/popup help' to view available options" },
-                { "helpTitle", $"[4F9BFF]{Title}  v{Version}"},                
+                { "helpTitle", $"[4F9BFF]{Title}  v{Version}"},
+                { "helpPopup", "[4F9BFF]/popup <text>[FFFFFF] - Sends a serverwide Pop Up"},
                 { "helpHelp", "[4F9BFF]/popup help[FFFFFF] - Display the help menu"},                
                 { "helpListr", "[4F9BFF]/rules [FFFFFF]- Lists all rules"},
                 { "helpListc", "[4F9BFF]/commands [FFFFFF]- Lists all commands"},
@@ -256,6 +257,7 @@ namespace Oxide.Plugins
                     {
 
                         SendReply(player, lang.GetMessage("helpTitle", this, playerId));
+                        SendReply(player, lang.GetMessage("helpPopup", this, playerId));
                         SendReply(player, lang.GetMessage("helpHelp", this, playerId));
                         SendReply(player, lang.GetMessage("helpListr", this, playerId));
                         SendReply(player, lang.GetMessage("helpListc", this, playerId));
@@ -272,12 +274,35 @@ namespace Oxide.Plugins
                         SendReply(player, lang.GetMessage("helpEditn", this, playerId));
 
                     }
+                    
                     return;
+                    
                 default:
-                    break;
-
+                    if (args.Length == 0)
+                    {
+                        SendReply(player, lang.GetMessage("synError", this, playerId));
+                        return;
+                    }
+                    string str = args.JoinToString<string>(" ");
+                    IEnumerator<Player> enumerator = Server.AllPlayers.GetEnumerator();
+                    try
+                    {
+                        while (enumerator.MoveNext())
+                        {
+                            Player current = enumerator.Current;
+                            current.ShowPopup("Alert", str, "Ok", null, false, true);
+                        }
+                    }
+                    finally
+                    {
+                        if (enumerator == null)
+                        {
+                        }
+                        enumerator.Dispose();
+                    }
+                    return;
             }
-            SendReply(player, lang.GetMessage("synError", this, playerId));
+            
 
         }
         [ChatCommand("addrule")]
@@ -414,7 +439,7 @@ namespace Oxide.Plugins
             SaveData();
             SendReply(player, lang.GetMessage("dataDeleted", this, playerId));
         }
-        //For The next page stuff I looked at GrandExchange by D-Kay as and example, thanks D-Kay!
+        //For The next page stuff I looked at GrandExchange by D-Kay as an example, thanks D-Kay!
         void CmdRules(Player player, string cmd, string[] args)
         {
             string msg = "";
@@ -488,7 +513,7 @@ namespace Oxide.Plugins
             }
             player.ShowConfirmPopup(NoticePopupWindowTitle, msg.ToString(), "Next Page", "Exit", (selection, dialogue, context) => NextPage(player, selection, dialogue, context, linesPerPage, linesPerPage, false, false, true));            
         }
-        //For The below code I looked at GrandExchange by D-Kay as and example, thanks D-Kay!
+        //For The below code I looked at GrandExchange by D-Kay as an example, thanks D-Kay!
         private void NextPage(Player player, Options selection, Dialogue dialogue, object context, int linesPerPage, int currentCount, bool rules = true, bool commands = false, bool notices = false)
         {
             if (selection != Options.Yes) return;
