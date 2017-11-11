@@ -37,6 +37,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Oxide.Plugins
 {
+
     [Info("ProtectedZone", "Mordeus", "1.2.0")]
     public class ProtectedZone : ReignOfKingsPlugin
     {
