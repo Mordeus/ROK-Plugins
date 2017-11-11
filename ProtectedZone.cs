@@ -1,18 +1,10 @@
-﻿/*ToDo: 
- 1. Add the ability to edit a zone by using zoneId instead of only standing in zone.
- 2. allow trebs and ballistas to be damaged in nodamage zone?
- 3. Look into getting resouces from salvage in a nodamage zone, and prefabs seem to give more resources.
+﻿/*ToDo:  
+1. Look into getting resources from salvage in a nodamage zone, and prefabs seem to give more resources.
  
  Known Bugs: 
  2 zones overlapping causes enter/exit messages to not work properly, but otherwise work fine.
- From some reason when using a treb, and a ballista is outside of the structure your attacking, it does 1500 damage to the structure(in a nodamage zone) if the blocks already have damage
-  Added:
-  API - Allows developer to create, edit, delete, and check for zones and flags within that zone from within thier plugin
-  Added AntiLoot support for upcoming release
-  -New flags for AntiLoot
-  -fixed a typo in lang file
-  -added messages to lang file for API
-  Added EjectSleeper-when a player logs out in a zone the sleeper will be teleported out of the zone
+ For some reason when using a treb, and a ballista is outside of the structure your attacking, it does 1500 damage to the structure(in a nodamage zone) if the blocks already have damage
+ 
   */
 using System.Collections.Generic;
 using System;
@@ -157,7 +149,7 @@ namespace Oxide.Plugins
                 { "cslzoneAdded", "Zone {0} sucessfully addded, named {1}." },
                 { "cslnameExists", "The Name {0} already exists" },
                 { "cslinZoneError", "This is too close to a zone, you cannot make another." },
-                { "cslformatError", "Invalid location format, use: \"x y z\" or here." },
+                { "cslformatError", "Invalid location format, use: \"x y z\" or here." },                               
 
         }, this);
         }
@@ -429,231 +421,12 @@ namespace Oxide.Plugins
 
                     return;
                 case "edit":
-                    count = 0;
-                    zcount = 0;
-                    string currentzone;
-                    foreach (var zoneDef in ZoneDefinitions)
-                    {
-                        count++;
-                        if (IsInZone(player, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) == true)
-                        {
-                            zcount++;
-                            currentzone = zoneDef.Value.Id;
-                            if (args[1] == "radius")
-                            {
-                                ZoneDefinitions[currentzone].ZoneRadius = Convert.ToUInt64(args[2]);
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneRadius);
-                                return;
-                            }
-                            if (args[1] == "name")
-                            {
-                                string name = args[2];
-                                if (zoneDef.Value.ZoneName == name)
-                                {
-                                    SendReply(player, lang.GetMessage("nameExists", this, playerId), name);
-                                    return;
-                                }
-                                ZoneDefinitions[currentzone].ZoneName = args[2];
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneName);
-                                return;
-                            }
-                            if (args[1] == "nopvp")
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoPVP = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoPVP);
-                                return;
-                            }
-                            if (args[1] == "nobuild")
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoBuild = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoBuild);
-                                return;
-                            }
-                            if (args[1] == "nodamage")
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoDamage = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoDamage);
-                                return;
-                            }
-                            if (args[1] == "nosleeperdamage")
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoSleeperDamage = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoSleeperDamage);
-                                return;
-                            }
-                            if (args[1] == "nocrestdamage")
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoCrestDamage = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoCrestDamage);
-                                return;
-                            }
-                            if (args[1] == "noroping")
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoPlayerRoping = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoPlayerRoping);
-                                return;
-                            }
-                            if (args[1] == "nopve")
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoPVE = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoPVE);
-                                return;
-                            }
-                            if (args[1] == "noprefabdamage")
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoPreFabDamage = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoPreFabDamage);
-                                return;
-                            }
-                            if (args[1] == "ejectplayer")
-                            {
-                                ZoneDefinitions[currentzone].ZoneEjectPlayer = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneEjectPlayer);
-                                return;
-                            } 
-                            
-                            if (args[1] == "ejectsleeper")
-                            {
-                                ZoneDefinitions[currentzone].ZoneEjectSleeper = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneEjectSleeper);
-                                return;
-                            }
-                            
-                            if (args[1] == "nochestlooting" && AntiLootLoaded)
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoChestLooting = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoChestLooting);
-                                return;
-                            }
-                            if (args[1] == "nostationlooting" && AntiLootLoaded)
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoStationLooting = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoStationLooting);
-                                return;
-                            }
-                            if (args[1] == "nocampfirelooting" && AntiLootLoaded)
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoCampfireLooting = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoCampfireLooting);
-                                return;
-                            }
-                            if (args[1] == "notorchlooting" && AntiLootLoaded)
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoTorchLooting = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoTorchLooting);
-                                return;
-                            }
-                            if (args[1] == "nofireplacelooting" && AntiLootLoaded)
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoFireplaceLooting = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoFireplaceLooting);
-                                return;
-                            }
-                            if (args[1] == "nofurniturelooting" && AntiLootLoaded)
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoFurnitureLooting = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoFurnitureLooting);
-                                return;
-                            }
-                            if (args[1] == "novillagerlooting" && AntiLootLoaded)
-                            {
-                                ZoneDefinitions[currentzone].ZoneNoVillagerLooting = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneNoVillagerLooting);
-                                return;
-                            }
-                            if (args[1] == "messageon")
-                            {
-                                ZoneDefinitions[currentzone].ZoneMessageOn = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneMessageOn);
-                                return;
-                            }
-                            if (args[1] == "message")
-                            {
-                                ZoneDefinitions[currentzone].ZoneMessage = Convert.ToString(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneMessage);
-                                return;
-                            }
-                            if (args[1] == "entermessageon")
-                            {
-                                ZoneDefinitions[currentzone].ZoneEnterMessageOn = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneEnterMessageOn);
-                                return;
-                            }
-                            if (args[1] == "entermessage")
-                            {
-                                ZoneDefinitions[currentzone].EnterZoneMessage = Convert.ToString(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.EnterZoneMessage);
-                                return;
-                            }
-                            if (args[1] == "exitmessageon")
-                            {
-                                ZoneDefinitions[currentzone].ZoneExitMessageOn = Convert.ToBoolean(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ZoneExitMessageOn);
-                                return;
-                            }
-                            if (args[1] == "exitmessage")
-                            {
-                                ZoneDefinitions[currentzone].ExitZoneMessage = Convert.ToString(args[2]);
-                                SaveData();
-                                LoadZones();
-                                SendReply(player, lang.GetMessage("zoneEdited", this, playerId), args[1], zoneDef.Value.Id, zoneDef.Value.ExitZoneMessage);
-                                return;
-                            }
-                            else
-                                SendReply(player, lang.GetMessage("synError", this, playerId));
-                            return;
-                        }
-                    }
-                    if (zcount == 0 && count > 1)
-                        SendReply(player, lang.GetMessage("zoneLocError", this, playerId));
-                    if (count == 0)
-                        SendReply(player, lang.GetMessage("noZoneError", this, playerId));
+                    
+                    
+                    var currentzone = GetZoneId(player);
+                     EditZone(currentzone.ToString(), args, player);
+                       
+                    
 
                     return;
                 default:
@@ -1069,9 +842,7 @@ namespace Oxide.Plugins
             return false;
         }
         private bool IsEntityInZone(Vector3 location, float zoneX, float zoneZ, float radius)
-        {        
-
-
+        {   
                     foreach (Vector2 zone in zones)
                     {
 
@@ -1085,8 +856,7 @@ namespace Oxide.Plugins
                             return false;
                     }
 
-                    return false;
-                
+                    return false;                
             
         }
         private void SendMessage(Player player, string message , bool repeat, bool inZone)
@@ -1198,11 +968,11 @@ namespace Oxide.Plugins
         }
         #endregion
         #region API
-        private bool EditZone(string zoneId, string[] args)
+        private bool EditZone(string zoneId, string[] args, Player player = null)
         {
             ZoneInfo zonedef;
             ZoneDefinitions.TryGetValue(zoneId, out zonedef);            
-            UpdateZoneInfo(zonedef, args);
+            UpdateZoneInfo(zonedef, args, player);
             ZoneDefinitions[zoneId] = zonedef;
             storedData.ZoneDefinitions.Add(zonedef);
             SaveData();
@@ -1329,6 +1099,7 @@ namespace Oxide.Plugins
         }        
         private void UpdateZoneInfo(ZoneInfo zone, string[] args, Player player = null)
         {
+            bool isFlag = false;
             for (var i = 0; i < args.Length; i = i + 1)
             {
                 object editflag;
@@ -1336,22 +1107,29 @@ namespace Oxide.Plugins
                 {
                     case "name":
                         editflag = zone.ZoneName = args[i + 1];
+                        isFlag = true;
                         break;
                     case "id":
                         editflag = zone.Id = args[i + 1];
+                        isFlag = true;
                         break;
                     case "radius":
                         editflag = zone.ZoneRadius = Convert.ToSingle(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "location":
                         if (player != null && args[i + 1].Equals("here", StringComparison.OrdinalIgnoreCase))
                         {
                             editflag = zone.Location = player.Entity.Position;
+                            isFlag = true;
                             break;
                         }
                         var loc = args[i + 1].Trim().Split(' ');
                         if (loc.Length == 3)
+                        {
                             editflag = zone.Location = new Vector3(Convert.ToSingle(loc[0]), Convert.ToSingle(loc[1]), Convert.ToSingle(loc[2]));
+                            isFlag = true;
+                        }
                         else
                         {
                             if (player != null) SendReply(player, "Invalid location format, use: \"x y z\" or here");
@@ -1360,82 +1138,110 @@ namespace Oxide.Plugins
                         break;
                     case "entermessage":
                         editflag = zone.EnterZoneMessage = args[i + 1];
+                        isFlag = true;
                         break;
                     case "leavemessage":
                         editflag = zone.ExitZoneMessage = args[i + 1];
+                        isFlag = true;
                         break;
-                    case "message":
+                    case "zonemessage":
                         editflag = zone.ZoneMessage = args[i + 1];
+                        isFlag = true;
                         break;
-                    case "pve":
+                    case "nopvp":
                         editflag = zone.ZoneNoPVP = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "nobuild":
                         editflag = zone.ZoneNoBuild = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "nodamage":
                         editflag = zone.ZoneNoDamage = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "nosleeperdamage":
                         editflag = zone.ZoneNoSleeperDamage = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "nocrestdamage":
                         editflag = zone.ZoneNoCrestDamage = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "noroping":
                         editflag = zone.ZoneNoPlayerRoping = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "nopve":
                         editflag = zone.ZoneNoPVE = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "noprefabdamage":
                         editflag = zone.ZoneNoPreFabDamage = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "ejectplayer":
                         editflag = zone.ZoneEjectPlayer = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "ejectsleeper":
                         editflag = zone.ZoneEjectSleeper = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "nochestlooting":
                         editflag = zone.ZoneNoChestLooting = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "nocampfirelooting":
                         editflag = zone.ZoneNoCampfireLooting = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "notorchlooting":
                         editflag = zone.ZoneNoTorchLooting = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "nofireplacelooting":
                         editflag = zone.ZoneNoFireplaceLooting = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "nofurniturelooting":
                         editflag = zone.ZoneNoFurnitureLooting = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "nostationlooting":
                         editflag = zone.ZoneNoStationLooting = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "novillagerlooting":
                         editflag = zone.ZoneNoVillagerLooting = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "messageon":
                         editflag = zone.ZoneMessageOn = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "entermessageon":
                         editflag = zone.ZoneEnterMessageOn = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     case "exitmessageon":
                         editflag = zone.ZoneExitMessageOn = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
                         break;
                     default:
-                        if (player != null) SendReply(player, $"Unknown zone flag: {args[i]}");
-                        continue;
+                        isFlag = false;
+                        editflag = false;
+                        break;
                 }                
                 SaveData();
                 LoadZones();
+                if (isFlag)
+                    if (player != null) SendReply(player, lang.GetMessage("zoneEdited", this, player.Id.ToString()), args[i], zone.Id, editflag); 
+                         
             }
         }
-        #endregion
+        #endregion         
+        
         T GetConfig<T>(string name, T defaultValue)
         {
             if (Config[name] == null) return defaultValue;
