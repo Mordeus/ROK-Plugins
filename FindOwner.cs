@@ -18,7 +18,7 @@ using System.Collections.Generic;
 
 namespace Oxide.Plugins
 {
-    [Info("FindOwner", "Mordeus", "1.0.0")]
+    [Info("FindOwner", "Mordeus", "1.0.1")]
     public class FindOwner : ReignOfKingsPlugin
     {
         private int layers;
@@ -26,7 +26,8 @@ namespace Oxide.Plugins
         private void OnServerInitialized()
         {
             layers = LayerMask.GetMask("Blocks");
-        }
+            permission.RegisterPermission("findowner.use", this);
+        }       
         #endregion
         #region lang API
         private void LoadDefaultMessages()
@@ -51,11 +52,7 @@ namespace Oxide.Plugins
         {
             string playerId = player.Id.ToString();
             ulong ownerId = 0;
-            if (!player.HasPermission("admin"))
-            {
-                player.SendError(lang.GetMessage("notAllowed", this, playerId));
-                return;
-            }
+            if (!hasPermission(player)) return;
             var position = new Vector3();
             RaycastHit hit;
 
@@ -155,6 +152,19 @@ namespace Oxide.Plugins
                 SendReply(player, lang.GetMessage("noInfo", this, playerId));
             return;
         }
-    #endregion
+
+        #endregion
+        #region Helpers
+        private bool hasPermission(Player player)
+        {
+            string playerId = player.Id.ToString();
+            if (!(player.HasPermission("admin") || player.HasPermission("findowner.use")))
+            {
+                player.SendError(lang.GetMessage("notAllowed", this, playerId));
+                return false;
+            }            
+            return true;
+        }
+        #endregion
     }
 }
