@@ -28,9 +28,9 @@ namespace Oxide.Plugins
             layers = LayerMask.GetMask("Blocks");
             permission.RegisterPermission("findowner.use", this);
         }       
-            #endregion
-            #region lang API
-            private new void LoadDefaultMessages()
+        #endregion
+        #region lang API
+        private void LoadDefaultMessages()
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
@@ -53,7 +53,6 @@ namespace Oxide.Plugins
             string playerId = player.Id.ToString();
             ulong ownerId = 0;
             if (!hasPermission(player)) return;
-            
             var position = new Vector3();
             RaycastHit hit;
 
@@ -153,6 +152,7 @@ namespace Oxide.Plugins
                 SendReply(player, lang.GetMessage("noInfo", this, playerId));
             return;
         }
+
         #endregion
         #region Helpers
         private bool hasPermission(Player player)
