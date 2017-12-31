@@ -1,11 +1,9 @@
 ﻿/*ToDo:  
 1. Look into getting resources from salvage in a nodamage zone, and prefabs seem to give more resources.
- 
  Known Bugs: 
  2 zones overlapping causes enter/exit messages to not work properly, but otherwise work fine.
  For some reason when using a treb, and a ballista is outside of the structure your attacking, it does 1500 damage to the structure(in a nodamage zone) if the blocks already have damage
- 
-  */
+  */ 
 using System.Collections.Generic;
 using System;
 using System.Linq;
@@ -37,7 +35,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("ProtectedZone", "Mordeus", "1.2.1")]
+    [Info("ProtectedZone", "Mordeus", "1.3.0")]
     public class ProtectedZone : ReignOfKingsPlugin
     {
         [PluginReference]
@@ -47,6 +45,7 @@ namespace Oxide.Plugins
         private StoredData storedData;
         private readonly Dictionary<string, ZoneInfo> ZoneDefinitions = new Dictionary<string, ZoneInfo>();
         private Dictionary<Player, PlayerData> PData;
+        public bool UpdateData = false;
         //config
         private bool MessagesOn => GetConfig("MessagesOn", false);
         private bool ZoneCheckOn => GetConfig("ZoneCheckOn", false);
@@ -55,7 +54,7 @@ namespace Oxide.Plugins
         private bool CrestCheckOn => GetConfig("CrestCheckOn", false);
         private bool AdminCanBuild => GetConfig("AdminCanBuild", true);
         private bool AdminCanKill => GetConfig("AdminCanKill", true);
-        private bool UseAntiLoot => GetConfig("UseAntiLoot", false);
+        private bool UseAntiLoot => GetConfig("UseAntiLoot", false);        
         List<Vector2> zones = new List<Vector2>();
         private Dictionary<string, Timer> timers = new Dictionary<string, Timer>();
         private Dictionary<string, Timer> ZoneCheckTimer = new Dictionary<string, Timer>();
@@ -72,10 +71,11 @@ namespace Oxide.Plugins
             Config["AdminCanBuild"] = AdminCanBuild;
             Config["AdminCanKill"] = AdminCanKill;
             Config["UseAntiLoot"] = UseAntiLoot;
+            
             SaveConfig();
         }
 
-        private void LoadDefaultMessages()
+        private new void LoadDefaultMessages()
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
@@ -106,7 +106,7 @@ namespace Oxide.Plugins
                 { "zoneMessage", "[4F9BFF]You have entered {0} zone.[FFFFFF]" },
                 { "zoneFlag1", "[4F9BFF]radius: [FFFFFF]{0}" },
                 { "zoneFlag2", "[4F9BFF]nopvp Flag: [FFFFFF]{0}" },
-                { "zoneFlag3", "[4F9BFF]nobuild Flag: [FFFFFF]{0}" },
+                { "zoneFlag3", "[4F9BFF]nobuild Flag: [FFFFFF]{0}" },                
                 { "zoneFlag4", "[4F9BFF]nodamage Flag: [FFFFFF]{0}" },
                 { "zoneFlag5", "[4F9BFF]nosleeperdamage Flag: [FFFFFF]{0}" },
                 { "zoneFlag6", "[4F9BFF]nocrestdamage Flag: [FFFFFF]{0}" },
@@ -128,12 +128,15 @@ namespace Oxide.Plugins
                 { "zoneFlag22", "[4F9BFF]nofireplacelooting Flag: [FFFFFF]{0}" },
                 { "zoneFlag23", "[4F9BFF]nofurniturelooting Flag: [FFFFFF]{0}" },
                 { "zoneFlag24", "[4F9BFF]novillagerlooting Flag: [FFFFFF]{0}" },
+                { "zoneFlag25", "[4F9BFF]nodecay Flag: [FFFFFF]{0}" },
+                { "zoneFlag26", "[4F9BFF]noprefabplace Flag: [FFFFFF]{0}" },
                 { "logPvP", "player {0} attempted to a harm a player ,cancelling damage." },
                 { "logSleeper", "player {0} attempted to kill a Sleeper ,cancelling damage." },
                 { "logCrest", "player {0} attempted to damage a crest ,cancelling damage." },
                 { "logNoBuild", "player {0} attempted to build in a no-build zone,cancelling placement."},
-                { "logNoDamage", "player {0} attempted to damage a block ,cancelling damage."},
+                { "logNoDamage", "player {0} attempted to damage a block ,cancelling damage."},                
                 { "logCrestPlace", "player {0} attempted to place a {1} in a no-build zone, cancelling placement."},
+                { "logObjectPlace", "player {0} attempted to place a {1} in a no-prefab zone, cancelling placement."},
                 { "logNoRope", "player {0} attempted to rope a player in a no-roping zone, cancelling."},
                 { "logNoPVE", "player {0} attempted to kill a {1} in a no-pve zone, cancelling."},
                 { "logNoPreFab", "player {0} attempted to damage a {1} in a no-prefab damage zone, cancelling."},
@@ -154,7 +157,7 @@ namespace Oxide.Plugins
         }, this);
         }
         void OnServerInitialized()
-        {
+        {            
             CacheAllOnlinePlayers();
             if (UseAntiLoot)
             {
@@ -170,12 +173,12 @@ namespace Oxide.Plugins
                     PrintWarning("AntiLoot is missing. Change AntiLootEnabled in the config to false to use without.");
                     AntiLootLoaded = false;                    
                     return;
-                }
+                }     
+                
             }
         }        
         private void Init()
         {
-            LoadDefaultConfig();            
             ProtectedZoneData = Interface.Oxide.DataFileSystem.GetFile("ProtectedZone");
             ProtectedZoneData.Settings.Converters = new JsonConverter[] { new StringEnumConverter(), new UnityVector3Converter(), };
             LoadZones();
@@ -184,12 +187,12 @@ namespace Oxide.Plugins
         }
         private void LoadData()
         {
-
+            
             ZoneDefinitions.Clear();
             try
             {
                 ProtectedZoneData.Settings.NullValueHandling = NullValueHandling.Ignore;
-                storedData = ProtectedZoneData.ReadObject<StoredData>();
+                storedData = ProtectedZoneData.ReadObject<StoredData>();                  
                 Puts("Loaded {0} Zone definitions", storedData.ZoneDefinitions.Count);
             }
             catch
@@ -198,10 +201,11 @@ namespace Oxide.Plugins
                 storedData = new StoredData();
             }
             ProtectedZoneData.Settings.NullValueHandling = NullValueHandling.Include;
+
             foreach (var zonedef in storedData.ZoneDefinitions)
                 ZoneDefinitions[zonedef.Id] = zonedef;
-
-        }
+            SaveData();
+        }       
         private class StoredData
         {
             public readonly HashSet<ZoneInfo> ZoneDefinitions = new HashSet<ZoneInfo>();
@@ -225,7 +229,9 @@ namespace Oxide.Plugins
             public float ZoneRadius;
             public bool ZoneNoPVP = false;
             public bool ZoneNoBuild = false;
+            public bool ZoneNoPreFabPlace = false;
             public bool ZoneNoDamage = false;
+            public bool ZoneNoDecay = false;
             public bool ZoneNoSleeperDamage = false;
             public bool ZoneNoCrestDamage = false;
             public bool ZoneNoPlayerRoping = false;
@@ -246,6 +252,7 @@ namespace Oxide.Plugins
             public string ZoneMessage = "This is a no PvP zone.";
             public string EnterZoneMessage = "You have entered a no PvP zone.";
             public string ExitZoneMessage = "You have exited a no PvP zone.";
+            public List<string> Flags = new List<string>();
 
             public ZoneInfo()
             {
@@ -385,7 +392,9 @@ namespace Oxide.Plugins
                             SendReply(player, lang.GetMessage("zoneFlag1", this, playerId), zoneDef.Value.ZoneRadius);
                             SendReply(player, lang.GetMessage("zoneFlag2", this, playerId), zoneDef.Value.ZoneNoPVP);
                             SendReply(player, lang.GetMessage("zoneFlag3", this, playerId), zoneDef.Value.ZoneNoBuild);
+                            SendReply(player, lang.GetMessage("zoneFlag26", this, playerId), zoneDef.Value.ZoneNoPreFabPlace);
                             SendReply(player, lang.GetMessage("zoneFlag4", this, playerId), zoneDef.Value.ZoneNoDamage);
+                            SendReply(player, lang.GetMessage("zoneFlag25", this, playerId), zoneDef.Value.ZoneNoDecay);
                             SendReply(player, lang.GetMessage("zoneFlag5", this, playerId), zoneDef.Value.ZoneNoSleeperDamage);
                             SendReply(player, lang.GetMessage("zoneFlag6", this, playerId), zoneDef.Value.ZoneNoCrestDamage);
                             SendReply(player, lang.GetMessage("zoneFlag7", this, playerId), zoneDef.Value.ZoneMessageOn);
@@ -435,17 +444,17 @@ namespace Oxide.Plugins
 
         #endregion
         private void OnEntityHealthChange(EntityDamageEvent damageEvent)
-        {
+        {           
             if (damageEvent == null) return;
-            if (damageEvent.Damage == null) return;
+            if (damageEvent.Damage == null) return;            
             if (damageEvent.Damage.DamageSource == null) return;
-            //if (!damageEvent.Damage.DamageSource.IsPlayer) return;
-            if (damageEvent.Damage.DamageSource.Owner == null) return;
             if (damageEvent.Entity == null) return;
+            if (damageEvent.Damage.DamageSource.name == damageEvent.Entity.name && damageEvent.Damage.DamageSource.IsPlayer) return;            
             var npc = IsNPC(damageEvent);
-            //sleeper   
-            var sleeper = damageEvent.Entity.GetComponentInChildren<PlayerSleeperObject>();
-            Player attacker = damageEvent.Damage.DamageSource.Owner;            
+            //sleeper 
+            
+            var sleeper = damageEvent.Entity.GetComponentInChildren<PlayerSleeperObject>();           
+            Player attacker = damageEvent.Damage.DamageSource.Owner;
             string victim;
             if (npc)
             {
@@ -459,24 +468,22 @@ namespace Oxide.Plugins
                 victim = damageEvent.Entity.Owner.DisplayName;            
 
             if (damageEvent.Damage.Amount < 0) return;
-            if (attacker.HasPermission("admin") && AdminCanKill) return;           
+            if (attacker.Name != "Server" && attacker.HasPermission("admin") && AdminCanKill) return;           
             
-            if (attacker != null || damageEvent.Entity.name.Contains("Crest") || sleeper == true || npc == true)
-            {                
-                if (victim == damageEvent.Damage.DamageSource.Owner.DisplayName) return; //allows dehydration and hunger, as well as healing.
-                
+            if (attacker != null || damageEvent.Entity.name.Contains("Crest") || sleeper == true || npc == true || damageEvent.Damage.DamageTypes == CodeHatch.Damaging.DamageType.Suicide)
+            {
                 foreach (var zoneDef in ZoneDefinitions)
                 {                    
                     if (IsEntityInZone(damageEvent.Entity.Position, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) || IsInZone(attacker, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius))
                     {                        
-                        if (zoneDef.Value.ZoneNoPVP == true && sleeper == false && !damageEvent.Entity.name.Contains("Crest") && npc == false && damageEvent.Entity.IsPlayer && damageEvent.Damage.DamageSource.IsPlayer)
+                        if (attacker != null &&zoneDef.Value.ZoneNoPVP == true && sleeper == false && !damageEvent.Entity.name.Contains("Crest") && npc == false && damageEvent.Entity.IsPlayer && damageEvent.Damage.DamageSource.IsPlayer)
                         {
                             damageEvent.Cancel(lang.GetMessage("logPvP", this, attacker.ToString()), attacker);
                             Puts(lang.GetMessage("logPvP", this, attacker.ToString()), attacker);
                             damageEvent.Damage.Amount = 0f;
                             SendReply(attacker, lang.GetMessage("noPvP", this, attacker.ToString()));
                         }
-                        if (zoneDef.Value.ZoneNoSleeperDamage == true && sleeper == true)
+                        if (attacker != null && zoneDef.Value.ZoneNoSleeperDamage == true && sleeper == true)
                         {
                             damageEvent.Cancel(lang.GetMessage("logSleeper", this, attacker.ToString()), attacker);
                             Puts(lang.GetMessage("logSleeper", this, attacker.ToString()), attacker);
@@ -484,7 +491,7 @@ namespace Oxide.Plugins
                             SendReply(attacker, lang.GetMessage("noSleeper", this, attacker.ToString()));
 
                         }
-                        if (zoneDef.Value.ZoneNoPVE == true && npc == true || !damageEvent.Damage.DamageSource.IsPlayer && zoneDef.Value.ZoneNoPVE == true)
+                        if (attacker != null && zoneDef.Value.ZoneNoPVE == true && npc == true || !damageEvent.Damage.DamageSource.IsPlayer && zoneDef.Value.ZoneNoPVE == true)
                         {
                             if (npc)
                             {
@@ -501,14 +508,14 @@ namespace Oxide.Plugins
                             }
 
                         }
-                        if (damageEvent.Entity.name.Contains("Crest") && zoneDef.Value.ZoneNoCrestDamage == true)
-                        {
+                        if (attacker != null && damageEvent.Entity.name.Contains("Crest") && zoneDef.Value.ZoneNoCrestDamage == true)
+                        {                            
                             damageEvent.Cancel(lang.GetMessage("logCrest", this, attacker.ToString()), attacker);
                             Puts(lang.GetMessage("logCrest", this, attacker.ToString()), attacker);
                             damageEvent.Damage.Amount = 0f;
                             SendReply(attacker, lang.GetMessage("noCrest", this, attacker.ToString()));
                         }
-                        if (zoneDef.Value.ZoneNoPreFabDamage == true && !damageEvent.Entity.IsPlayer && damageEvent.Entity.GetBlueprint() && !damageEvent.Entity.name.Contains("Crest") && sleeper == false && npc == false)
+                        if (attacker != null && zoneDef.Value.ZoneNoPreFabDamage == true && !damageEvent.Entity.IsPlayer && damageEvent.Entity.GetBlueprint() && !damageEvent.Entity.name.Contains("Crest") && sleeper == false && npc == false && damageEvent.Damage.DamageTypes != CodeHatch.Damaging.DamageType.Suicide)
                         {                            
                             victim = damageEvent.Entity.name;
                             string input = victim;
@@ -520,6 +527,11 @@ namespace Oxide.Plugins
                             damageEvent.Damage.Amount = 0f;
                             SendReply(attacker, lang.GetMessage("noPreFab", this, attacker.ToString()), victim);
 
+                        }                        
+                        if (attacker.Name == "Server" && zoneDef.Value.ZoneNoDecay == true && !damageEvent.Entity.IsPlayer && damageEvent.Damage.DamageTypes == CodeHatch.Damaging.DamageType.Suicide && !damageEvent.Entity.name.Contains("Crest") && sleeper == false && npc == false)
+                        {                            
+                            damageEvent.Cancel();                            
+                            damageEvent.Damage.Amount = 0f;
                         }
                     }
                 }
@@ -606,11 +618,11 @@ namespace Oxide.Plugins
             }
         }
         private void OnCubeTakeDamage(CubeDamageEvent Event)
-        {
+        {           
             if (Event == null) return;            
             if (Event.Damage == null) return;
             if (Event.Damage.Amount <= 0f) return;
-            if (Event.Damage.DamageSource == null) return;
+            if (Event.Damage.DamageSource == null) return;            
             if (!Event.Damage.DamageSource.IsPlayer) return;
             Player player = Event.Damage.DamageSource.Owner;
             if (player == null) return;
@@ -647,7 +659,7 @@ namespace Oxide.Plugins
             }
         }
         private void OnObjectDeploy(NetworkInstantiateEvent Event)
-        {
+        {           
             Player player = Server.GetPlayerById(Event.SenderId);
             string playerId = player.Id.ToString();
             if (player == null) return;
@@ -656,9 +668,10 @@ namespace Oxide.Plugins
             {
                 if (IsInZone(Event.Sender, zoneDef.Value.ZoneX, zoneDef.Value.ZoneZ, zoneDef.Value.ZoneRadius) == true)
                 {
+                    InvItemBlueprint bp = InvDefinitions.Instance.Blueprints.GetBlueprintForID(Event.BlueprintId);
                     if (zoneDef.Value.ZoneNoBuild == true)
                     {
-                        InvItemBlueprint bp = InvDefinitions.Instance.Blueprints.GetBlueprintForID(Event.BlueprintId);
+                        
                         if (bp.Name.Contains("Crest"))
                         {
                             timer.In(1, () => ObjectRemove(player, Event.Position, bp.name));
@@ -667,7 +680,12 @@ namespace Oxide.Plugins
                         }
 
                     }
-
+                    if (zoneDef.Value.ZoneNoPreFabPlace == true && !bp.Name.Contains("Crest"))
+                    {                       
+                        timer.In(1, () => ObjectRemove(player, Event.Position, bp.name));
+                        Puts(lang.GetMessage("logObjectPlace", this, playerId), player, bp.Name);
+                        SendReply(Event.Sender, lang.GetMessage("noPlace", this, playerId), bp.Name);
+                    }
                 }
             }
         }
@@ -705,7 +723,6 @@ namespace Oxide.Plugins
                     ZoneCheckTimer.Add(playerId, timer.Repeat(ZoneCheckInterval, 0, () => CheckPlayerLocation(player)));
                 }
             }
-
         }
         
         private void OnPlayerSleep(PlayerSleepEvent Event)
@@ -1052,6 +1069,17 @@ namespace Oxide.Plugins
             LoadZones();
             return true;
         }
+        private void AddFlag(string zoneId, string flagString)
+        {
+            ZoneDefinitions[zoneId].Flags.Add(flagString);
+            SaveData();
+        }
+        
+        private void RemoveFlag(string zoneId, string flagString)
+        {
+            ZoneDefinitions[zoneId].Flags.Remove(flagString);
+            SaveData();
+        }
         private bool IsPlayerInZone(Player player)
         {
             foreach (var zoneDef in ZoneDefinitions)                
@@ -1093,6 +1121,12 @@ namespace Oxide.Plugins
         }
         private bool HasZoneFlag(ZoneInfo zone, string flag)
         {
+            foreach (string flagstring in zone.Flags)
+            {
+                if (flagstring == flag)
+                    return true;
+            }
+
             if (flag == "pve" && zone.ZoneNoPVP == true || flag == "nobuild" && zone.ZoneNoBuild == true || flag == "nodamage" && zone.ZoneNoDamage == true || flag == "nosleeperdamage" && zone.ZoneNoSleeperDamage == true || flag == "nocrestdamage" && zone.ZoneNoCrestDamage == true || flag == "noroping" && zone.ZoneNoPlayerRoping == true || flag == "nopve" && zone.ZoneNoPVE == true || flag == "noprefabdamage" && zone.ZoneNoPreFabDamage == true || flag == "ejectplayer" && zone.ZoneEjectPlayer == true || flag == "ejectsleeper" && zone.ZoneEjectSleeper == true || flag == "nochestlooting" && zone.ZoneNoChestLooting == true || flag == "nocampfirelooting" && zone.ZoneNoCampfireLooting == true || flag == "notorchlooting" && zone.ZoneNoTorchLooting == true || flag == "nofireplacelooting" && zone.ZoneNoFireplaceLooting == true || flag == "nofurniturelooting" && zone.ZoneNoFurnitureLooting == true || flag == "nostationlooting" && zone.ZoneNoStationLooting == true || flag == "novillagerlooting" && zone.ZoneNoVillagerLooting == true || flag == "messageon" && zone.ZoneMessageOn == true || flag == "entermessageon" && zone.ZoneEnterMessageOn == true || flag == "exitmessageon" && zone.ZoneExitMessageOn == true)
                 return true;
             return false;
@@ -1156,8 +1190,16 @@ namespace Oxide.Plugins
                         editflag = zone.ZoneNoBuild = Convert.ToBoolean(args[i + 1]);
                         isFlag = true;
                         break;
+                    case "noprefabplace":
+                        editflag = zone.ZoneNoPreFabPlace = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
+                        break;
                     case "nodamage":
                         editflag = zone.ZoneNoDamage = Convert.ToBoolean(args[i + 1]);
+                        isFlag = true;
+                        break;
+                    case "nodecay":
+                        editflag = zone.ZoneNoDecay = Convert.ToBoolean(args[i + 1]);
                         isFlag = true;
                         break;
                     case "nosleeperdamage":
