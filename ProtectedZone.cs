@@ -1,7 +1,8 @@
 ﻿/*ToDo:  
+ * BUG: if two nobuild zones overlap players will gain resources when placing a block.
 1. Look into getting resources from salvage in a nodamage zone, and prefabs seem to give more resources.
  Known Bugs: 
- 2 zones overlapping causes enter/exit messages to not work properly, but otherwise work fine.
+ 2 zones overlapping causes enter/exit messages to not work properly.
  For some reason when using a treb, and a ballista is outside of the structure your attacking, it does 1500 damage to the structure(in a nodamage zone) if the blocks already have damage
   */ 
 using System.Collections.Generic;
@@ -35,7 +36,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Oxide.Plugins
 {
-    [Info("ProtectedZone", "Mordeus", "1.3.0")]
+    [Info("ProtectedZone", "Mordeus", "1.3.1")]
     public class ProtectedZone : ReignOfKingsPlugin
     {
         [PluginReference]
@@ -54,7 +55,8 @@ namespace Oxide.Plugins
         private bool CrestCheckOn => GetConfig("CrestCheckOn", false);
         private bool AdminCanBuild => GetConfig("AdminCanBuild", true);
         private bool AdminCanKill => GetConfig("AdminCanKill", true);
-        private bool UseAntiLoot => GetConfig("UseAntiLoot", false);        
+        private bool UseAntiLoot => GetConfig("UseAntiLoot", false);
+        private bool TakeBlocks => GetConfig("TakeBlocksFromPlayer", false);
         List<Vector2> zones = new List<Vector2>();
         private Dictionary<string, Timer> timers = new Dictionary<string, Timer>();
         private Dictionary<string, Timer> ZoneCheckTimer = new Dictionary<string, Timer>();
@@ -71,7 +73,8 @@ namespace Oxide.Plugins
             Config["AdminCanBuild"] = AdminCanBuild;
             Config["AdminCanKill"] = AdminCanKill;
             Config["UseAntiLoot"] = UseAntiLoot;
-            
+            Config["TakeBlocksFromPlayer"] = TakeBlocks;
+
             SaveConfig();
         }
 
@@ -596,7 +599,8 @@ namespace Oxide.Plugins
                             {
                                 if (!OwnsCrestArea(player))//allows crest owners to rope//allows crest owners to remove/add blocks
                                 {
-                                    InventoryUtil.CollectTileset(Event.Sender, Event.Material, 1, Event.PrefabId);
+                                    if (!TakeBlocks)
+                                        InventoryUtil.CollectTileset(Event.Sender, Event.Material, 1, Event.PrefabId);
                                     Event.Cancel(lang.GetMessage("logNoBuild", this, playerId), player);
                                     Puts(lang.GetMessage("logNoBuild", this, playerId), player);
                                     SendReply(player, lang.GetMessage("noBuild", this, playerId));
@@ -606,7 +610,8 @@ namespace Oxide.Plugins
                             }
                             else
                             {
-                                InventoryUtil.CollectTileset(Event.Sender, Event.Material, 1, Event.PrefabId);
+                                if (!TakeBlocks)
+                                    InventoryUtil.CollectTileset(Event.Sender, Event.Material, 1, Event.PrefabId);
                                 Event.Cancel(lang.GetMessage("logNoBuild", this, playerId), player);
                                 Puts(lang.GetMessage("logNoBuild", this, playerId), player);
                                 SendReply(player, lang.GetMessage("noBuild", this, playerId));
@@ -622,18 +627,21 @@ namespace Oxide.Plugins
             if (Event == null) return;            
             if (Event.Damage == null) return;
             if (Event.Damage.Amount <= 0f) return;
-            if (Event.Damage.DamageSource == null) return;            
+            if (Event.Damage.DamageSource == null) return;
+            if (Event.Damage.Damager == null) return;            
             if (!Event.Damage.DamageSource.IsPlayer) return;
             Player player = Event.Damage.DamageSource.Owner;
+            var damageSource = Event.Damage.Damager.name;            
             if (player == null) return;
             string playerId = player.Id.ToString();
             TilesetColliderCube centralPrefabAtLocal = BlockManager.DefaultCubeGrid.GetCentralPrefabAtLocal(Event.Position);
             Vector3 pos;
             Vector3 Vect = new Vector3(0f, 0f, 0f);
-            if (Event.Damage.point != Vect)
-            pos = Event.Damage.point; //Use for treb and ballista
-            else
             pos = Event.Damage.DamageSource.Position;
+            if (Event.Damage.point != Vect)
+                pos = Event.Damage.point; //Use for treb and ballista
+            if (damageSource.Contains("Bolt") || damageSource.Contains("Arrow"))
+                pos = Event.Damage.Damager.TryGetEntity().Position; ;
             
             foreach (var zoneDef in ZoneDefinitions)
             {
@@ -644,7 +652,7 @@ namespace Oxide.Plugins
                         Event.Cancel(lang.GetMessage("logNoDamage", this, playerId), player);
                         SalvageModifier component = centralPrefabAtLocal.GetComponent<SalvageModifier>();
                         if (component != null && !component.info.NotSalvageable)
-                        {
+                        {                            
                             component.info.SalvageAmount = 0;
                         }
 
